@@ -9,11 +9,18 @@ import { TierUpgradeModal } from "../components/TierUpgradeModal";
 import { BillingEnforcementBanner } from "../components/BillingEnforcementBanner";
 import { authenticate } from "../shopify.server";
 import { getBillingEnforcementState } from "../services/billing-enforcement.server";
+import { enforceVolumeBillingGate } from "../services/billing-gate.server";
 import { countPausedBundles } from "../models/bundle.server";
 import type { BillingPlanKey } from "../constants/billing";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, billing, admin } = await authenticate.admin(request);
+  const gate = await enforceVolumeBillingGate(
+    request,
+    billing,
+    admin,
+    session.shop,
+  );
   const enforcement = await getBillingEnforcementState(session.shop);
   const pausedCount = enforcement.showPausedBanner
     ? await countPausedBundles(session.shop)
@@ -23,6 +30,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     apiKey: process.env.SHOPIFY_API_KEY || "",
     enforcement,
     pausedCount,
+    hasPaidPlan: gate.hasPaidPlan,
   };
 };
 
@@ -33,6 +41,8 @@ export function shouldRevalidate({
 }: ShouldRevalidateFunctionArgs) {
   if (formAction?.includes("/billing/enforcement")) return true;
   if (formAction?.includes("/app/billing")) return true;
+  if (nextUrl.searchParams.get("charge_id")) return true;
+  if (nextUrl.searchParams.get("subscribed") === "true") return true;
 
   const currentPath = currentUrl.pathname;
   const nextPath = nextUrl.pathname;
@@ -47,17 +57,22 @@ export function shouldRevalidate({
 }
 
 export default function App() {
-  const { apiKey, enforcement, pausedCount } = useLoaderData<typeof loader>();
+  const { apiKey, enforcement, pausedCount, hasPaidPlan } =
+    useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
       <QueryProvider>
         <ThemeProvider>
           <s-app-nav>
-            <s-link href="/app">Dashboard</s-link>
-            <s-link href="/app/bundles">Bundles</s-link>
-            <s-link href="/app/analytics">Analytics</s-link>
-            <s-link href="/app/settings">Widget</s-link>
+            {hasPaidPlan ? (
+              <>
+                <s-link href="/app">Dashboard</s-link>
+                <s-link href="/app/bundles">Bundles</s-link>
+                <s-link href="/app/analytics">Analytics</s-link>
+                <s-link href="/app/settings">Widget</s-link>
+              </>
+            ) : null}
             <s-link href="/app/billing">Billing</s-link>
           </s-app-nav>
           <div className="app-shell">

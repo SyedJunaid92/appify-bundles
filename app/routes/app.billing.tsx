@@ -18,20 +18,23 @@ import {
   canonicalizePlanKey,
   isVolumeSubscription,
 } from "../constants/billing";
-import {
-  clearActivePlan,
-  getBillingSummary,
-  setActivePlan,
-} from "../models/billing.server";
+import { clearActivePlan, getBillingSummary } from "../models/billing.server";
 import { formatOrderRange } from "../utils/billing-calculation";
 import {
   billingModeLabel,
   isShopBillingTestMode,
 } from "../services/billing-mode.server";
+import { requestVolumeBillingIfNeeded } from "../services/billing-gate.server";
+import { volumeBillingReturnUrl } from "../utils/embedded-app";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, admin, session } = await authenticate.admin(request);
-  const isTest = await isShopBillingTestMode(admin);
+  const { isTest } = await requestVolumeBillingIfNeeded(
+    request,
+    billing,
+    admin,
+    session.shop,
+  );
 
   const billingCheck = await billing.check({
     plans: [...SHOPIFY_BILLING_PLAN_KEYS],
@@ -42,10 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const currentPlan = summary.recommendedPlan;
   const shopifyPlanName = billingCheck.appSubscriptions[0]?.name;
   const hasActivePayment =
-    billingCheck.hasActivePayment ||
-    isVolumeSubscription(shopifyPlanName) ||
-    isVolumeSubscription(summary.billing.activePlan) ||
-    summary.hasActiveSubscription;
+    billingCheck.hasActivePayment || isVolumeSubscription(shopifyPlanName);
 
   return {
     tiers: BILLING_TIERS,
@@ -89,10 +89,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { success: "Billing cancelled." };
   }
 
-  await setActivePlan(session.shop, APPIFY_BUNDLES);
   return billing.request({
     plan: APPIFY_BUNDLES,
     isTest,
+    returnUrl: volumeBillingReturnUrl(request),
   });
 };
 
