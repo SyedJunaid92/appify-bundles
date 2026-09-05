@@ -18,19 +18,21 @@ export const APP_SUBSCRIPTION_STATUSES = [
 export type AppSubscriptionStatus = (typeof APP_SUBSCRIPTION_STATUSES)[number];
 
 export const appSubscriptionWebhookSchema = z.object({
-  app_subscription: z.object({
-    admin_graphql_api_id: z.string(),
-    name: z.string(),
-    status: z.enum(APP_SUBSCRIPTION_STATUSES),
-    admin_graphql_api_shop_id: z.string().optional(),
-    created_at: z.string(),
-    updated_at: z.string(),
-    currency: z.string().optional(),
-    capped_amount: z.string().optional(),
-    price: z.string().optional(),
-    interval: z.string().optional(),
-    plan_handle: z.string().optional(),
-  }),
+  app_subscription: z
+    .object({
+      admin_graphql_api_id: z.string(),
+      name: z.string(),
+      status: z.enum(APP_SUBSCRIPTION_STATUSES),
+      admin_graphql_api_shop_id: z.string().optional(),
+      created_at: z.string().optional(),
+      updated_at: z.string().optional(),
+      currency: z.string().optional(),
+      capped_amount: z.string().optional(),
+      price: z.string().optional(),
+      interval: z.string().optional(),
+      plan_handle: z.string().optional(),
+    })
+    .passthrough(),
 });
 
 export type AppSubscriptionWebhookPayload = z.infer<

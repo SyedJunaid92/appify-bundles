@@ -72,16 +72,18 @@ export default function PrivacyPolicy() {
       <s-section heading="Data retention">
         <s-unordered-list>
           <s-list-item>
-            When you uninstall the app, session data is deleted via the
-            app/uninstalled webhook.
+            When you uninstall the app, sessions are deleted and billing is
+            cancelled via the app/uninstalled webhook.
           </s-list-item>
           <s-list-item>
-            Order event records are retained only as long as needed for billing
-            period calculation.
+            48 hours after uninstall, Shopify sends shop/redact and we delete
+            remaining store data (bundles, analytics, billing history, and
+            profile).
           </s-list-item>
           <s-list-item>
-            Bundle and analytics data can be deleted upon request by contacting
-            support.
+            customers/redact removes order IDs we stored for that customer.
+            customers/data_request is acknowledged; we do not store customer
+            names, emails, phones, or addresses.
           </s-list-item>
         </s-unordered-list>
       </s-section>

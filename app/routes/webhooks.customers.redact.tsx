@@ -1,22 +1,22 @@
 import type { ActionFunctionArgs } from "react-router";
-import { appSubscriptionWebhookSchema } from "../schemas/subscription-webhook.schema";
-import { syncSubscriptionFromWebhook } from "../services/subscription-webhook.server";
+import { customersRedactSchema } from "../schemas/compliance-webhook.schema";
 import { finishWebhookWork } from "../services/webhook-defer.server";
+import { redactCustomerOrders } from "../services/shop-cleanup.server";
 import { authenticateWebhook } from "../services/webhook-auth.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticateWebhook(request);
   console.log(`Received ${topic} webhook for ${shop}`);
 
-  const parsed = appSubscriptionWebhookSchema.safeParse(payload);
+  const parsed = customersRedactSchema.safeParse(payload);
   if (!parsed.success) {
     console.error(
-      `[app_subscriptions/update] Invalid payload for ${shop}:`,
+      `[customers/redact] Invalid payload for ${shop}:`,
       parsed.error.flatten(),
     );
     return new Response();
   }
 
-  await finishWebhookWork(syncSubscriptionFromWebhook(shop, parsed.data));
+  await finishWebhookWork(redactCustomerOrders(shop, parsed.data));
   return new Response();
 };

@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import { authenticateWebhook } from "../services/webhook-auth.server";
 import { incrementOrderCount } from "../models/billing.server";
 import { trackBundlePurchasesFromOrder } from "../services/analytics.server";
 import { checkTierLimitAfterOrder } from "../services/billing-enforcement.server";
@@ -17,7 +17,7 @@ interface OrderWebhookPayload {
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic, payload } = await authenticate.webhook(request);
+  const { shop, topic, payload } = await authenticateWebhook(request);
   console.log(`Received ${topic} webhook for ${shop}`);
 
   await finishWebhookWork(processOrderWebhook(shop, payload as OrderWebhookPayload));

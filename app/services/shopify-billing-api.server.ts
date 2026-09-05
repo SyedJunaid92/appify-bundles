@@ -1,5 +1,5 @@
+import "@shopify/shopify-api/adapters/web-api";
 import { shopifyApi, ApiVersion } from "@shopify/shopify-api";
-import "@shopify/shopify-api/adapters/node";
 import { SHOPIFY_BILLING_PLAN_KEYS } from "../constants/billing";
 
 let client: ReturnType<typeof shopifyApi> | null = null;

@@ -52,7 +52,7 @@ export async function syncSubscriptionFromWebhook(
       subscriptionId,
       planKey,
       price: subscription.price,
-      updatedAt: subscription.updated_at,
+      updatedAt: subscription.updated_at ?? new Date().toISOString(),
       orderCount: billing.monthlyOrderCount,
     });
 

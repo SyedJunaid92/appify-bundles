@@ -1,10 +1,10 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { finishWebhookWork } from "../services/webhook-defer.server";
+import { authenticateWebhook } from "../services/webhook-auth.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { payload, session, topic, shop } = await authenticate.webhook(request);
+  const { payload, session, topic, shop } = await authenticateWebhook(request);
   console.log(`Received ${topic} webhook for ${shop}`);
 
   const current = payload.current as string[];

@@ -57,4 +57,17 @@ describe("appSubscriptionWebhookSchema", () => {
       expect(result.data.app_subscription.name).toBe("TIER_2000");
     }
   });
+
+  it("accepts usage subscriptions without created_at or price", () => {
+    const result = appSubscriptionWebhookSchema.safeParse({
+      app_subscription: {
+        admin_graphql_api_id: "gid://shopify/AppSubscription/1",
+        name: "APPIFY_BUNDLES",
+        status: "ACTIVE",
+        capped_amount: "799.99",
+        currency: "USD",
+      },
+    });
+    expect(result.success).toBe(true);
+  });
 });
