@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { selectPlanSchema } from "../schemas/billing.schema";
+import { APPIFY_BUNDLES } from "../constants/billing";
 import { setActivePlan } from "../models/billing.server";
 import { isShopBillingTestMode } from "../services/billing-mode.server";
 import { pauseBundlesForTierLimit } from "../services/billing-enforcement.server";
@@ -17,14 +17,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "upgrade") {
-    const parsed = selectPlanSchema.safeParse({ plan: form.get("plan") });
-    if (!parsed.success) {
-      return { error: "Invalid plan selected." };
-    }
-
-    await setActivePlan(session.shop, parsed.data.plan);
+    await setActivePlan(session.shop, APPIFY_BUNDLES);
     return billing.request({
-      plan: parsed.data.plan,
+      plan: APPIFY_BUNDLES,
       isTest,
     });
   }

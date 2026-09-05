@@ -3,10 +3,12 @@ import {
   ApiVersion,
   AppDistribution,
   BillingInterval,
+  BillingReplacementBehavior,
   shopifyApp,
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import {
+  APPIFY_BUNDLES,
   BILLING_TIERS,
   MONTHLY_CHARGE_CAP,
   TIER_1000,
@@ -17,6 +19,7 @@ import {
   TIER_ENTERPRISE,
   TIER_SCALE,
   TRIAL_DAYS,
+  USAGE_TERMS,
 } from "./constants/billing";
 import prisma from "./db.server";
 import { ensureCartTransform } from "./services/shopify-sync.server";
@@ -31,6 +34,18 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   billing: {
+    [APPIFY_BUNDLES]: {
+      trialDays: TRIAL_DAYS,
+      replacementBehavior: BillingReplacementBehavior.ApplyImmediately,
+      lineItems: [
+        {
+          amount: MONTHLY_CHARGE_CAP,
+          currencyCode: "USD",
+          interval: BillingInterval.Usage,
+          terms: `${USAGE_TERMS}. Cap $${MONTHLY_CHARGE_CAP}.`,
+        },
+      ],
+    },
     [TIER_500]: {
       trialDays: TRIAL_DAYS,
       lineItems: [

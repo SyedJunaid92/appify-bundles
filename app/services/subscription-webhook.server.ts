@@ -1,8 +1,11 @@
 import prisma from "../db.server";
 import {
+  APPIFY_BUNDLES,
   BILLING_TIERS,
+  isVolumeSubscription,
   type BillingPlanKey,
 } from "../constants/billing";
+import { calculateMonthlyCharge } from "../utils/billing-calculation";
 import {
   isActiveSubscriptionStatus,
   isInactiveSubscriptionStatus,
@@ -18,7 +21,7 @@ export interface SubscriptionSyncResult {
   shop: string;
   subscriptionId: string;
   status: string;
-  planKey: BillingPlanKey | null;
+  planKey: BillingPlanKey | typeof APPIFY_BUNDLES | null;
   historyRecorded: boolean;
 }
 
@@ -112,7 +115,7 @@ async function recordSubscriptionChargeIfNew(options: {
   billingId: string;
   shop: string;
   subscriptionId: string;
-  planKey: BillingPlanKey;
+  planKey: BillingPlanKey | typeof APPIFY_BUNDLES;
   price?: string;
   updatedAt: string;
   orderCount: number;
@@ -125,10 +128,13 @@ async function recordSubscriptionChargeIfNew(options: {
   });
   if (existing) return false;
 
-  const tier = BILLING_TIERS[options.planKey];
+  const volume = calculateMonthlyCharge(options.orderCount);
+  const tier = isVolumeSubscription(options.planKey)
+    ? null
+    : BILLING_TIERS[options.planKey as BillingPlanKey];
   const baseAmount = options.price
     ? Number.parseFloat(options.price)
-    : tier.baseAmount;
+    : (tier?.baseAmount ?? volume.cappedAmount);
   const periodStart = new Date(periodEnd);
   periodStart.setDate(periodStart.getDate() - SUBSCRIPTION_PERIOD_DAYS);
 

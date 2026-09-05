@@ -3,10 +3,11 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { Form, useLoaderData, useNavigation } from "react-router";
+import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import {
+  APPIFY_BUNDLES,
   BILLING_PLAN_KEYS,
   BILLING_TIERS,
   MONTHLY_CHARGE_CAP,
@@ -15,10 +16,13 @@ import {
   USAGE_ORDER_THRESHOLD,
   USAGE_RATE_PER_ORDER,
   canonicalizePlanKey,
-  subscribedBaseAmount,
+  isVolumeSubscription,
 } from "../constants/billing";
-import { getBillingSummary, setActivePlan } from "../models/billing.server";
-import { selectPlanSchema } from "../schemas/billing.schema";
+import {
+  clearActivePlan,
+  getBillingSummary,
+  setActivePlan,
+} from "../models/billing.server";
 import { formatOrderRange } from "../utils/billing-calculation";
 import {
   billingModeLabel,
@@ -37,36 +41,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const summary = await getBillingSummary(session.shop);
   const currentPlan = summary.recommendedPlan;
   const shopifyPlanName = billingCheck.appSubscriptions[0]?.name;
-  const subscribedPlan =
-    canonicalizePlanKey(shopifyPlanName) ??
-    canonicalizePlanKey(summary.billing.activePlan);
-  const subscribedBase = subscribedBaseAmount(
-    shopifyPlanName ?? summary.billing.activePlan,
-  );
-  const volumeTotal = summary.charge.cappedAmount;
-  const needsLowerBase = Boolean(subscribedPlan && subscribedBase > volumeTotal);
-  const usageWillApply = Boolean(
-    subscribedPlan && volumeTotal > subscribedBase,
-  );
+  const hasActivePayment =
+    billingCheck.hasActivePayment ||
+    isVolumeSubscription(shopifyPlanName) ||
+    isVolumeSubscription(summary.billing.activePlan) ||
+    summary.hasActiveSubscription;
 
   return {
     tiers: BILLING_TIERS,
-    hasActivePayment: billingCheck.hasActivePayment,
+    hasActivePayment,
     currentPlan,
-    subscribedPlan,
-    subscribedBase,
     subscription: billingCheck.appSubscriptions[0] ?? null,
     monthlyOrderCount: summary.billing.monthlyOrderCount,
     charge: summary.charge,
-    needsLowerBase,
-    usageWillApply,
     history: summary.history,
     daysRemaining: summary.daysRemaining,
     monthlyCap: MONTHLY_CHARGE_CAP,
     isTest,
     billingModeLabel: billingModeLabel(isTest),
-    subscriptionStatus: summary.subscriptionStatus,
-    hasActiveSubscription: summary.hasActiveSubscription,
     trialDays: TRIAL_DAYS,
     usageRate: USAGE_RATE_PER_ORDER,
     usageThreshold: USAGE_ORDER_THRESHOLD,
@@ -77,23 +69,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { billing, admin, session } = await authenticate.admin(request);
   const isTest = await isShopBillingTestMode(admin);
   const form = await request.formData();
-  const parsed = selectPlanSchema.safeParse({
-    plan: form.get("plan"),
-  });
+  const intent = String(form.get("intent") ?? "subscribe");
 
-  if (!parsed.success) {
-    return { error: "Invalid plan selected." };
+  if (intent === "cancel") {
+    const billingCheck = await billing.check({
+      plans: [...SHOPIFY_BILLING_PLAN_KEYS],
+      isTest,
+    });
+    const subscriptionId = billingCheck.appSubscriptions[0]?.id;
+    if (!subscriptionId) {
+      return { error: "No Shopify subscription to cancel." };
+    }
+    await billing.cancel({
+      subscriptionId,
+      isTest,
+      prorate: true,
+    });
+    await clearActivePlan(session.shop);
+    return { success: "Billing cancelled." };
   }
 
-  await setActivePlan(session.shop, parsed.data.plan);
-
+  await setActivePlan(session.shop, APPIFY_BUNDLES);
   return billing.request({
-    plan: parsed.data.plan,
+    plan: APPIFY_BUNDLES,
     isTest,
   });
 };
 
 function historyPlanName(planKey: string) {
+  if (isVolumeSubscription(planKey)) return "Volume";
   const key = canonicalizePlanKey(planKey);
   return key ? BILLING_TIERS[key].name : planKey;
 }
@@ -103,41 +107,46 @@ export default function BillingPage() {
     tiers,
     hasActivePayment,
     currentPlan,
-    subscribedPlan,
-    subscribedBase,
-    subscription,
     monthlyOrderCount,
     charge,
-    needsLowerBase,
-    usageWillApply,
     history,
     daysRemaining,
     monthlyCap,
     isTest,
     billingModeLabel,
-    subscriptionStatus,
-    hasActiveSubscription,
     trialDays,
     usageRate,
     usageThreshold,
   } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const busy = navigation.state !== "idle";
   const currentTier = tiers[currentPlan];
-  const subscribedTier = subscribedPlan ? tiers[subscribedPlan] : null;
 
   return (
-    <s-page heading="Billing">
-      <s-section heading="Current plan and orders">
+    <s-page
+      heading={
+        hasActivePayment
+          ? "Volume billing is active"
+          : "One plan. Price follows your orders."
+      }
+    >
+      {actionData && "error" in actionData && actionData.error ? (
+        <s-banner tone="critical">{actionData.error}</s-banner>
+      ) : null}
+      {actionData && "success" in actionData && actionData.success ? (
+        <s-banner tone="success">{actionData.success}</s-banner>
+      ) : null}
+
+      <s-section heading="This period">
         <s-stack direction="block" gap="base">
           <s-badge tone={isTest ? "info" : "success"}>{billingModeLabel}</s-badge>
+          <s-text>
+            {hasActivePayment
+              ? "Appify Bundles reports order volume to Shopify each period. Shopify charges the matching band automatically."
+              : `Approve once on Shopify. After that, monthly orders set the charge: $50, $125, or $175 plus $${usageRate.toFixed(2)} over ${usageThreshold.toLocaleString()}. ${trialDays}-day free trial.`}
+          </s-text>
           <s-stack direction="inline" gap="large">
-            <s-box padding="base" borderWidth="base" borderRadius="base">
-              <s-stack direction="block" gap="small">
-                <s-text tone="neutral">Current plan this month</s-text>
-                <s-heading>{currentTier.name}</s-heading>
-                <s-text tone="neutral">{currentTier.description}</s-text>
-              </s-stack>
-            </s-box>
             <s-box padding="base" borderWidth="base" borderRadius="base">
               <s-stack direction="block" gap="small">
                 <s-text tone="neutral">Orders this period</s-text>
@@ -147,64 +156,29 @@ export default function BillingPage() {
             </s-box>
             <s-box padding="base" borderWidth="base" borderRadius="base">
               <s-stack direction="block" gap="small">
-                <s-text tone="neutral">Estimated charge</s-text>
+                <s-text tone="neutral">This month’s price</s-text>
                 <s-heading>${charge.cappedAmount.toFixed(2)}</s-heading>
                 {charge.wasCapped && (
                   <s-text tone="neutral">Capped at ${monthlyCap}/mo</s-text>
                 )}
               </s-stack>
             </s-box>
+            <s-box padding="base" borderWidth="base" borderRadius="base">
+              <s-stack direction="block" gap="small">
+                <s-text tone="neutral">Your volume band</s-text>
+                <s-heading>{currentTier.name}</s-heading>
+                <s-text tone="neutral">{currentTier.description}</s-text>
+              </s-stack>
+            </s-box>
           </s-stack>
-
-          {hasActivePayment || hasActiveSubscription ? (
-            <s-stack direction="inline" gap="base">
-              <s-badge tone="success">Active</s-badge>
-              {subscriptionStatus && subscriptionStatus !== "ACTIVE" && (
-                <s-badge tone="info">{subscriptionStatus}</s-badge>
-              )}
-              <s-text>
-                Shopify subscription:{" "}
-                {subscribedTier?.name ?? subscription?.name ?? "Active"}
-                {subscribedTier
-                  ? ` ($${subscribedBase.toFixed(0)}/mo base)`
-                  : ""}
-              </s-text>
-            </s-stack>
-          ) : (
-            <s-banner tone="warning">
-              No active subscription. Select a plan below to continue using
-              Appify Bundle.
-            </s-banner>
-          )}
-
-          {usageWillApply && subscribedTier && (
-            <s-banner tone="info">
-              This month&apos;s volume is {currentTier.name} ($
-              {charge.cappedAmount.toFixed(2)}). Shopify will collect the
-              difference above your {subscribedTier.name} base as usage at the
-              end of the period.
-            </s-banner>
-          )}
-
-          {needsLowerBase && subscribedTier && (
-            <s-banner tone="warning">
-              You are subscribed to {subscribedTier.name} ($
-              {subscribedBase.toFixed(0)}/mo), but this month&apos;s volume is{" "}
-              {currentTier.name} (${charge.cappedAmount.toFixed(2)}). Select{" "}
-              {currentTier.name} below to lower your Shopify base — recurring
-              amounts cannot decrease without your approval.
-            </s-banner>
-          )}
         </s-stack>
       </s-section>
 
-      <s-section heading="Plans">
+      <s-section heading="How Shopify charges">
         <s-stack direction="block" gap="base">
           {BILLING_PLAN_KEYS.map((key) => {
             const tier = tiers[key];
-            const isVolumePlan = currentPlan === key;
-            const isSubscribed = subscribedPlan === key;
-
+            const isCurrent = currentPlan === key;
             return (
               <s-box
                 key={key}
@@ -212,44 +186,63 @@ export default function BillingPage() {
                 borderWidth="base"
                 borderRadius="base"
               >
-                <s-stack direction="inline" gap="base">
-                  <s-stack direction="block" gap="small">
-                    <s-stack direction="inline" gap="small">
-                      <s-heading>{tier.name}</s-heading>
-                      {isVolumePlan && (
-                        <s-badge tone="info">This month</s-badge>
-                      )}
-                      {isSubscribed && (
-                        <s-badge tone="success">Shopify plan</s-badge>
-                      )}
-                    </s-stack>
-                    <s-text tone="neutral">{tier.description}</s-text>
-                    <s-text tone="neutral">{formatOrderRange(key)}</s-text>
-                    <s-text>
-                      ${tier.baseAmount}/month
-                      {tier.hasUsage &&
-                        ` + $${USAGE_RATE_PER_ORDER.toFixed(2)}/order over ${USAGE_ORDER_THRESHOLD.toLocaleString()} · max $${monthlyCap}/mo`}
-                      {" · "}
-                      {trialDays}-day free trial
-                    </s-text>
+                <s-stack direction="block" gap="small">
+                  <s-stack direction="inline" gap="small">
+                    <s-heading>{tier.name}</s-heading>
+                    {isCurrent && <s-badge tone="info">Your volume</s-badge>}
                   </s-stack>
-                  <Form method="post">
-                    <input type="hidden" name="plan" value={key} />
-                    <s-button
-                      type="submit"
-                      variant={isSubscribed ? "secondary" : "primary"}
-                      {...(navigation.state === "submitting"
-                        ? { loading: true }
-                        : {})}
-                    >
-                      {isSubscribed ? "Current Shopify plan" : "Select plan"}
-                    </s-button>
-                  </Form>
+                  <s-text>
+                    ${tier.baseAmount}/month
+                    {tier.hasUsage
+                      ? ` + $${usageRate.toFixed(2)}/order over ${usageThreshold.toLocaleString()}`
+                      : ""}
+                  </s-text>
+                  <s-text tone="neutral">{formatOrderRange(key)}</s-text>
                 </s-stack>
               </s-box>
             );
           })}
         </s-stack>
+      </s-section>
+
+      <s-section heading={hasActivePayment ? "Subscription" : "Approve billing"}>
+        {hasActivePayment ? (
+          <s-stack direction="block" gap="base">
+            <s-banner tone="success">
+              Volume billing is on. Shopify will invoice ${charge.cappedAmount.toFixed(2)}{" "}
+              for {monthlyOrderCount.toLocaleString()} orders this period. If
+              volume moves, the charge moves with it.
+            </s-banner>
+            <Form method="post">
+              <input type="hidden" name="intent" value="cancel" />
+              <s-button
+                type="submit"
+                variant="secondary"
+                {...(busy ? { loading: true } : {})}
+              >
+                Cancel billing
+              </s-button>
+            </Form>
+          </s-stack>
+        ) : (
+          <s-stack direction="block" gap="base">
+            <s-banner tone="warning">
+              Approve volume billing on Shopify to keep using Appify Bundles.
+              You do not pick a plan — Shopify charges the band that matches
+              your monthly orders.
+            </s-banner>
+            <Form method="post">
+              <input type="hidden" name="intent" value="subscribe" />
+              <s-button
+                type="submit"
+                variant="primary"
+                {...(busy ? { loading: true } : {})}
+              >
+                Continue on Shopify
+              </s-button>
+            </Form>
+          </s-stack>
+        )}
       </s-section>
 
       {history.length > 0 && (
@@ -295,21 +288,19 @@ export default function BillingPage() {
       <s-section slot="aside" heading="How billing works">
         <s-unordered-list>
           <s-list-item>
-            Recurring billing is charged through Shopify and adjusts each month
-            from your order volume.
+            Approve once. There is no plan to select.
           </s-list-item>
           <s-list-item>
-            0–500 orders: $50. 501–1,500 orders: $125. 1,501+ orders: $175 + $
+            0–500 orders: $50. 501–1,500: $125. 1,501+: $175 + $
             {usageRate.toFixed(2)} per order over {usageThreshold.toLocaleString()}
             .
           </s-list-item>
           <s-list-item>
-            Extra volume is collected as Shopify usage on top of the plan you
-            approved, capped at ${monthlyCap}/month.
+            Shopify collects that amount as usage on a recurring invoice, capped
+            at ${monthlyCap}/month.
           </s-list-item>
           <s-list-item>
-            Monthly history is stored per store. The last 12 months appear here
-            when records exist.
+            History for the last 12 months appears here when records exist.
           </s-list-item>
         </s-unordered-list>
       </s-section>

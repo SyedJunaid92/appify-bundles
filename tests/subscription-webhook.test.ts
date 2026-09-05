@@ -14,6 +14,9 @@ describe("parsePlanKeyFromSubscriptionName", () => {
     expect(parsePlanKeyFromSubscriptionName("TIER_ENTERPRISE")).toBe(
       "TIER_SCALE",
     );
+    expect(parsePlanKeyFromSubscriptionName("APPIFY_BUNDLES")).toBe(
+      "APPIFY_BUNDLES",
+    );
   });
 
   it("returns null for unknown names", () => {

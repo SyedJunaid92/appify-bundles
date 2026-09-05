@@ -1,3 +1,4 @@
+export const APPIFY_BUNDLES = "APPIFY_BUNDLES";
 export const TIER_500 = "TIER_500";
 export const TIER_1500 = "TIER_1500";
 export const TIER_SCALE = "TIER_SCALE";
@@ -21,6 +22,7 @@ export const LEGACY_BILLING_PLAN_KEYS = [
 ] as const;
 
 export const SHOPIFY_BILLING_PLAN_KEYS = [
+  APPIFY_BUNDLES,
   ...BILLING_PLAN_KEYS,
   ...LEGACY_BILLING_PLAN_KEYS,
 ] as const;
@@ -35,6 +37,8 @@ export const USAGE_RATE_PER_ORDER = 0.01;
 export const USAGE_ORDER_THRESHOLD = 1500;
 export const TRIAL_DAYS = 7;
 export const SUBSCRIPTION_BASE_AMOUNT = 50;
+export const USAGE_TERMS =
+  "Monthly charge from order volume: $50 (0–500), $125 (501–1,500), $175 plus $0.01 per order over 1,500";
 
 export interface BillingTierDefinition {
   key: BillingPlanKey;
@@ -101,6 +105,10 @@ const LEGACY_BASE_AMOUNTS: Record<string, number> = {
   [TIER_ENTERPRISE]: 130,
 };
 
+export function isVolumeSubscription(value: string | null | undefined): boolean {
+  return value?.trim() === APPIFY_BUNDLES;
+}
+
 export function canonicalizePlanKey(
   value: string | null | undefined,
 ): BillingPlanKey | null {
@@ -111,10 +119,12 @@ export function canonicalizePlanKey(
 export function subscribedBaseAmount(
   planKey: string | null | undefined,
 ): number {
-  if (planKey && planKey in LEGACY_BASE_AMOUNTS) {
+  if (!planKey || isVolumeSubscription(planKey)) return 0;
+  if (planKey in LEGACY_BASE_AMOUNTS) {
     return LEGACY_BASE_AMOUNTS[planKey];
   }
-  const canonical = canonicalizePlanKey(planKey) ?? TIER_500;
+  const canonical = canonicalizePlanKey(planKey);
+  if (!canonical) return 0;
   return BILLING_TIERS[canonical].baseAmount;
 }
 

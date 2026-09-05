@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  APPIFY_BUNDLES,
   MONTHLY_CHARGE_CAP,
   TIER_1000,
   TIER_1500,
@@ -99,6 +100,13 @@ describe("usageChargeForSubscription", () => {
   it("uses the legacy Shopify base when still on TIER_1000", () => {
     expect(subscribedBaseAmount(TIER_1000)).toBe(40);
     expect(usageChargeForSubscription(400, TIER_1000)).toBe(10);
+  });
+
+  it("charges the full volume price on the single usage subscription", () => {
+    expect(subscribedBaseAmount(APPIFY_BUNDLES)).toBe(0);
+    expect(usageChargeForSubscription(400, APPIFY_BUNDLES)).toBe(50);
+    expect(usageChargeForSubscription(800, APPIFY_BUNDLES)).toBe(125);
+    expect(usageChargeForSubscription(2000, APPIFY_BUNDLES)).toBe(180);
   });
 });
 

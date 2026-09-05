@@ -28,9 +28,21 @@ export async function getShopBilling(shop: string) {
   return prisma.shopBilling.findUnique({ where: { shop } });
 }
 
+export async function clearActivePlan(shop: string) {
+  await bumpCacheVersion("billing", shop);
+  return prisma.shopBilling.updateMany({
+    where: { shop },
+    data: {
+      activePlan: null,
+      shopifySubscriptionId: null,
+      subscriptionStatus: "CANCELLED",
+    },
+  });
+}
+
 export async function setActivePlan(
   shop: string,
-  planKey: BillingPlanKey,
+  planKey: BillingPlanKey | string,
   shopifySubscriptionId?: string,
 ) {
   await bumpCacheVersion("billing", shop);

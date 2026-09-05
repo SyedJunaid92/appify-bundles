@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
+  APPIFY_BUNDLES,
   canonicalizePlanKey,
+  isVolumeSubscription,
   type BillingPlanKey,
 } from "../constants/billing";
 
@@ -37,7 +39,8 @@ export type AppSubscriptionWebhookPayload = z.infer<
 
 export function parsePlanKeyFromSubscriptionName(
   name: string,
-): BillingPlanKey | null {
+): BillingPlanKey | typeof APPIFY_BUNDLES | null {
+  if (isVolumeSubscription(name)) return APPIFY_BUNDLES;
   return canonicalizePlanKey(name);
 }
 

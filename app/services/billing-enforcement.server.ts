@@ -84,7 +84,7 @@ export async function pauseBundlesForTierLimit(shop: string): Promise<number> {
 
 export async function resumeBundlesAfterUpgrade(
   shop: string,
-  planKey: BillingPlanKey,
+  planKey: BillingPlanKey | string,
 ): Promise<number> {
   const billing = await getOrCreateShopBilling(shop);
 
