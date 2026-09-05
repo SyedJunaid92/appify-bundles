@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { trackEventSchema } from "../schemas/analytics.schema";
 import { trackStorefrontEvent } from "../services/analytics.server";
+import { shopFromAppProxy } from "../utils/embedded-app";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -9,8 +10,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const { session } = await authenticate.public.appProxy(request);
+  const shop = shopFromAppProxy(request, session?.shop);
 
-  if (!session?.shop) {
+  if (!shop) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -29,7 +31,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
-  await trackStorefrontEvent(session.shop, parsed.data);
+  await trackStorefrontEvent(shop, parsed.data);
 
   return Response.json({ success: true });
 };

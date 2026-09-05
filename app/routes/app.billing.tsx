@@ -4,7 +4,12 @@ import type {
   LoaderFunctionArgs,
 } from "react-router";
 import { useEffect } from "react";
-import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
+import {
+  Form,
+  useActionData,
+  useLoaderData,
+  useNavigation,
+} from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import {
@@ -28,7 +33,10 @@ import {
   requestVolumeBillingIfNeeded,
   startVolumeBilling,
 } from "../services/billing-gate.server";
-import { isShopifyAdminCheckoutUrl } from "../utils/embedded-app";
+import {
+  isShopifyAdminCheckoutUrl,
+  normalizeShopifyCheckoutUrl,
+} from "../utils/embedded-app";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, admin, session } = await authenticate.admin(request);
@@ -146,7 +154,7 @@ export default function BillingPage() {
     confirmationUrl;
   const shopifyUrl =
     rawShopifyUrl && isShopifyAdminCheckoutUrl(rawShopifyUrl)
-      ? rawShopifyUrl
+      ? normalizeShopifyCheckoutUrl(rawShopifyUrl)
       : undefined;
   const requestFailed =
     requestError ||
@@ -154,8 +162,12 @@ export default function BillingPage() {
 
   useEffect(() => {
     if (!shopifyUrl || !isShopifyAdminCheckoutUrl(shopifyUrl)) return;
-    const target = window.top ?? window;
-    target.location.href = shopifyUrl;
+    try {
+      const target = window.top ?? window;
+      target.location.assign(shopifyUrl);
+    } catch {
+      window.open(shopifyUrl, "_top");
+    }
   }, [shopifyUrl]);
 
   return (
@@ -170,15 +182,65 @@ export default function BillingPage() {
         <s-banner tone="critical">{requestFailed}</s-banner>
       ) : null}
       {shopifyUrl ? (
-        <s-banner tone="info">Opening Shopify to approve billing…</s-banner>
+        <s-banner tone="info">
+          Opening Shopify to approve billing… If nothing happens,{" "}
+          <s-link href={shopifyUrl} target="_top">
+            continue on Shopify
+          </s-link>
+          .
+        </s-banner>
       ) : null}
       {actionData && "success" in actionData && actionData.success ? (
         <s-banner tone="success">{actionData.success}</s-banner>
       ) : null}
 
+      <s-section
+        heading={hasActivePayment ? "Subscription" : "Approve billing"}
+      >
+        {hasActivePayment ? (
+          <s-stack direction="block" gap="base">
+            <s-banner tone="success">
+              Volume billing is on. Shopify will invoice $
+              {charge.cappedAmount.toFixed(2)} for{" "}
+              {monthlyOrderCount.toLocaleString()} orders this period. If volume
+              moves, the charge moves with it.
+            </s-banner>
+            <Form method="post">
+              <input type="hidden" name="intent" value="cancel" />
+              <s-button
+                type="submit"
+                variant="secondary"
+                {...(busy ? { loading: true } : {})}
+              >
+                Cancel billing
+              </s-button>
+            </Form>
+          </s-stack>
+        ) : (
+          <s-stack direction="block" gap="base">
+            <s-banner tone="warning">
+              Approve volume billing on Shopify to keep using Appify Bundles.
+              Shopify charges the band that matches your monthly orders.
+            </s-banner>
+            <Form method="post">
+              <input type="hidden" name="intent" value="subscribe" />
+              <s-button
+                type="submit"
+                variant="primary"
+                {...(busy ? { loading: true } : {})}
+              >
+                Subscribe
+              </s-button>
+            </Form>
+          </s-stack>
+        )}
+      </s-section>
+
       <s-section heading="This period">
         <s-stack direction="block" gap="base">
-          <s-badge tone={isTest ? "info" : "success"}>{billingModeLabel}</s-badge>
+          <s-badge tone={isTest ? "info" : "success"}>
+            {billingModeLabel}
+          </s-badge>
           <s-text>
             {hasActivePayment
               ? "Appify Bundles reports order volume to Shopify each period. Shopify charges the matching band automatically."
@@ -243,46 +305,6 @@ export default function BillingPage() {
         </s-stack>
       </s-section>
 
-      <s-section heading={hasActivePayment ? "Subscription" : "Approve billing"}>
-        {hasActivePayment ? (
-          <s-stack direction="block" gap="base">
-            <s-banner tone="success">
-              Volume billing is on. Shopify will invoice ${charge.cappedAmount.toFixed(2)}{" "}
-              for {monthlyOrderCount.toLocaleString()} orders this period. If
-              volume moves, the charge moves with it.
-            </s-banner>
-            <Form method="post">
-              <input type="hidden" name="intent" value="cancel" />
-              <s-button
-                type="submit"
-                variant="secondary"
-                {...(busy ? { loading: true } : {})}
-              >
-                Cancel billing
-              </s-button>
-            </Form>
-          </s-stack>
-        ) : (
-          <s-stack direction="block" gap="base">
-            <s-banner tone="warning">
-              Approve volume billing on Shopify to keep using Appify Bundles.
-              You do not pick a plan — Shopify charges the band that matches
-              your monthly orders.
-            </s-banner>
-            <Form method="post">
-              <input type="hidden" name="intent" value="subscribe" />
-              <s-button
-                type="submit"
-                variant="primary"
-                {...(busy ? { loading: true } : {})}
-              >
-                Continue on Shopify
-              </s-button>
-            </Form>
-          </s-stack>
-        )}
-      </s-section>
-
       {history.length > 0 && (
         <s-section heading="Billing history">
           <s-text tone="neutral">
@@ -325,13 +347,11 @@ export default function BillingPage() {
 
       <s-section slot="aside" heading="How billing works">
         <s-unordered-list>
-          <s-list-item>
-            Approve once. There is no plan to select.
-          </s-list-item>
+          <s-list-item>Approve once. There is no plan to select.</s-list-item>
           <s-list-item>
             0–500 orders: $50. 501–1,500: $125. 1,501+: $175 + $
-            {usageRate.toFixed(2)} per order over {usageThreshold.toLocaleString()}
-            .
+            {usageRate.toFixed(2)} per order over{" "}
+            {usageThreshold.toLocaleString()}.
           </s-list-item>
           <s-list-item>
             Shopify collects that amount as usage on a recurring invoice, capped

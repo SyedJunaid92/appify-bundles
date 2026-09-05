@@ -1,22 +1,22 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
-  getActiveBundlesForProduct,
-  getBundleById,
-  getShopWidgetSettings,
+  filterBundlesForProduct,
+  getStorefrontCatalog,
 } from "../models/bundle.server";
-import { getRunningExperiments } from "../models/experiment.server";
 import {
   assignExperimentVariant,
   experimentCookieName,
   parseExperimentCookie,
 } from "../engines/ab-assign";
 import { resolveBundleTypeId } from "../constants/bundle-types";
+import { shopFromAppProxy } from "../utils/embedded-app";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.public.appProxy(request);
+  const shop = shopFromAppProxy(request, session?.shop);
 
-  if (!session?.shop) {
+  if (!shop) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -41,14 +41,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       : `gid://shopify/Product/${productId}`
     : "";
 
-  const [matched, widget, experiments] = await Promise.all([
-    getActiveBundlesForProduct(session.shop, normalizedProductId || "cart", {
-      collectionIds,
-      placement,
-    }),
-    getShopWidgetSettings(session.shop),
-    getRunningExperiments(session.shop),
-  ]);
+  const catalog = await getStorefrontCatalog(shop);
+  const matched = filterBundlesForProduct(
+    catalog.bundles,
+    normalizedProductId || "cart",
+    { collectionIds, placement },
+  );
+  const widget = catalog.widget;
+  const experiments = catalog.experiments;
 
   const cookieHeader = request.headers.get("cookie") || "";
   const cookies = Object.fromEntries(
@@ -80,8 +80,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         );
       }
       if (variant === "challenger") {
-        const challenger = await getBundleById(session.shop, experiment.challengerBundleId);
-        if (challenger && challenger.status === "active") {
+        const challenger = catalog.bundles.find(
+          (bundle) => bundle.id === experiment.challengerBundleId,
+        );
+        if (challenger) {
           visible.push({
             ...challenger,
             experimentId: experiment.id,

@@ -5,7 +5,7 @@ export default function PrivacyPolicy() {
   return (
     <s-page heading="Privacy Policy">
       <s-section heading="Appify Bundle Privacy Policy">
-        <s-paragraph>Last updated: July 7, 2026</s-paragraph>
+        <s-paragraph>Last updated: September 6, 2026</s-paragraph>
       </s-section>
 
       <s-section heading="Information we collect">
@@ -90,8 +90,9 @@ export default function PrivacyPolicy() {
 
       <s-section heading="Contact">
         <s-paragraph>
-          For privacy inquiries, contact your Appify Bundle support channel or
-          the email listed on your Shopify App Store listing.
+          For privacy inquiries, see the public policy at
+          https://appify-bundles.vercel.app/privacy or contact the email listed
+          on the Shopify App Store listing.
         </s-paragraph>
       </s-section>
     </s-page>

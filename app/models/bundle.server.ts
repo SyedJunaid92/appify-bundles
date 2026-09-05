@@ -1,6 +1,59 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "../db.server";
 import { DEFAULT_WIDGET_COLORS } from "../constants/billing";
+import {
+  bumpCacheVersion,
+  cachedJson,
+  readCacheVersion,
+} from "../services/redis.server";
+import { anyIdMatch, isScheduleActive } from "../engines/targeting";
+
+export const STOREFRONT_CACHE_TTL_SECONDS = 60;
+
+export type StorefrontBundle = {
+  id: string;
+  title: string;
+  handle: string;
+  type: string;
+  status: string;
+  discountType: string;
+  discountValue: number;
+  parentProductId: string | null;
+  parentVariantId: string | null;
+  layout: string;
+  widgetOverrides: unknown;
+  items: Array<{
+    productId: string;
+    variantId: string;
+    productTitle: string;
+    variantTitle: string | null;
+    quantity: number;
+    role: string;
+    selectedByDefault: boolean;
+    optional: boolean;
+  }>;
+  tiers: Array<{
+    minQuantity: number;
+    discountType: string;
+    discountValue: number;
+    label: string | null;
+  }>;
+};
+
+export type StorefrontCatalog = {
+  bundles: StorefrontBundle[];
+  widget: Record<string, string>;
+  experiments: Array<{
+    id: string;
+    controlBundleId: string;
+    challengerBundleId: string;
+    trafficPercent: number;
+  }>;
+};
+
+export async function invalidateStorefrontCache(shop: string) {
+  await bumpCacheVersion("storefront", shop);
+}
 
 export type BundleWithRelations = Prisma.BundleGetPayload<{
   include: { items: true; tiers: true };
@@ -86,8 +139,79 @@ function isProductExcluded(
   return exceptions.some((id) => productIdMatches(String(id), productId));
 }
 
-export async function getActiveBundlesForProduct(
+function toStorefrontBundle(bundle: BundleWithRelations): StorefrontBundle {
+  return {
+    id: bundle.id,
+    title: bundle.title,
+    handle: bundle.handle,
+    type: bundle.type,
+    status: bundle.status,
+    discountType: bundle.discountType,
+    discountValue: Number(bundle.discountValue),
+    parentProductId: bundle.parentProductId,
+    parentVariantId: bundle.parentVariantId,
+    layout: bundle.layout,
+    widgetOverrides: bundle.widgetOverrides,
+    items: bundle.items.map((item) => ({
+      productId: item.productId,
+      variantId: item.variantId,
+      productTitle: item.productTitle,
+      variantTitle: item.variantTitle,
+      quantity: item.quantity,
+      role: item.role,
+      selectedByDefault: item.selectedByDefault,
+      optional: item.optional,
+    })),
+    tiers: bundle.tiers.map((tier) => ({
+      minQuantity: tier.minQuantity,
+      discountType: tier.discountType,
+      discountValue: Number(tier.discountValue),
+      label: tier.label,
+    })),
+  };
+}
+
+export async function loadStorefrontCatalog(
   shop: string,
+): Promise<StorefrontCatalog> {
+  const [bundles, widget, experiments] = await Promise.all([
+    prisma.bundle.findMany({
+      where: { shop, status: "active" },
+      include: {
+        items: { orderBy: { sortOrder: "asc" } },
+        tiers: { orderBy: { minQuantity: "asc" } },
+      },
+    }),
+    getShopWidgetSettings(shop),
+    prisma.bundleExperiment.findMany({
+      where: { shop, status: "running" },
+      select: {
+        id: true,
+        controlBundleId: true,
+        challengerBundleId: true,
+        trafficPercent: true,
+      },
+    }),
+  ]);
+
+  return {
+    bundles: bundles.map(toStorefrontBundle),
+    widget,
+    experiments,
+  };
+}
+
+export async function getStorefrontCatalog(shop: string) {
+  const version = await readCacheVersion("storefront", shop);
+  return cachedJson(
+    `storefront:catalog:${shop}:${version}`,
+    STOREFRONT_CACHE_TTL_SECONDS,
+    () => loadStorefrontCatalog(shop),
+  );
+}
+
+export function filterBundlesForProduct(
+  bundles: StorefrontBundle[],
   productId: string,
   options: {
     collectionIds?: string[];
@@ -95,18 +219,6 @@ export async function getActiveBundlesForProduct(
     now?: Date;
   } = {},
 ) {
-  const bundles = await prisma.bundle.findMany({
-    where: {
-      shop,
-      status: "active",
-    },
-    include: {
-      items: { orderBy: { sortOrder: "asc" } },
-      tiers: { orderBy: { minQuantity: "asc" } },
-    },
-  });
-
-  const { isScheduleActive, anyIdMatch } = await import("../engines/targeting");
   const now = options.now ?? new Date();
   const collectionIds = options.collectionIds ?? [];
   const placement = options.placement ?? "product";
@@ -179,6 +291,19 @@ export async function getActiveBundlesForProduct(
   });
 }
 
+export async function getActiveBundlesForProduct(
+  shop: string,
+  productId: string,
+  options: {
+    collectionIds?: string[];
+    placement?: "product" | "cart";
+    now?: Date;
+  } = {},
+) {
+  const catalog = await getStorefrontCatalog(shop);
+  return filterBundlesForProduct(catalog.bundles, productId, options);
+}
+
 export async function getShopWidgetSettings(shop: string) {
   const settings = await prisma.shopSettings.findUnique({
     where: { shop },
@@ -192,11 +317,13 @@ export async function updateShopWidgetSettings(
   widget: Record<string, string>,
 ) {
   const shopSettings = await getOrCreateShopSettings(shop);
-  return prisma.shopSettings.update({
+  const updated = await prisma.shopSettings.update({
     where: { id: shopSettings.id },
     data: { widget },
     select: { widget: true },
   });
+  await invalidateStorefrontCache(shop);
+  return updated;
 }
 
 export async function createBundle(
@@ -231,7 +358,7 @@ export async function createBundle(
 ) {
   const shopSettings = await getOrCreateShopSettings(shop);
 
-  return prisma.bundle.create({
+  const created = await prisma.bundle.create({
     data: {
       shop,
       shopSettingsId: shopSettings.id,
@@ -271,6 +398,8 @@ export async function createBundle(
     },
     include: { items: true, tiers: true },
   });
+  await invalidateStorefrontCache(shop);
+  return created;
 }
 
 export async function updateBundle(
@@ -299,7 +428,7 @@ export async function updateBundle(
 ) {
   const { items, tiers, ...bundleData } = data;
 
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     if (items) {
       await tx.bundleItem.deleteMany({ where: { bundleId: id } });
       await tx.bundleItem.createMany({
@@ -338,12 +467,15 @@ export async function updateBundle(
       include: { items: true, tiers: true },
     });
   });
+  await invalidateStorefrontCache(shop);
+  return updated;
 }
 
 export async function deleteBundle(shop: string, id: string) {
   const bundle = await prisma.bundle.findFirst({ where: { id, shop } });
   if (!bundle) return null;
   await prisma.bundle.delete({ where: { id } });
+  await invalidateStorefrontCache(shop);
   return bundle;
 }
 
@@ -356,6 +488,7 @@ export async function pauseAllActiveBundles(shop: string) {
     where: { shop, status: "active" },
     data: { status: "paused" },
   });
+  await invalidateStorefrontCache(shop);
   return result.count;
 }
 
@@ -364,6 +497,7 @@ export async function resumePausedBundles(shop: string) {
     where: { shop, status: "paused" },
     data: { status: "active" },
   });
+  await invalidateStorefrontCache(shop);
   return result.count;
 }
 
@@ -379,10 +513,12 @@ export async function updateBundleStatus(
   const bundle = await prisma.bundle.findFirst({ where: { id, shop } });
   if (!bundle) return null;
 
-  return prisma.bundle.update({
+  const updated = await prisma.bundle.update({
     where: { id },
     data: { status },
   });
+  await invalidateStorefrontCache(shop);
+  return updated;
 }
 
 export async function getDashboardData(shop: string) {

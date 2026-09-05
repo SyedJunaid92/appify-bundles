@@ -53,6 +53,19 @@ export function isBillingGateExempt(pathname: string): boolean {
   );
 }
 
+/**
+ * App proxy HMAC can succeed while the offline session is missing.
+ * Storefront widgets still need the signed shop domain to load offers.
+ */
+export function shopFromAppProxy(
+  request: Request,
+  sessionShop?: string | null,
+): string | null {
+  const shop = sessionShop || new URL(request.url).searchParams.get("shop");
+  if (!shop) return null;
+  return shop.includes(".myshopify.com") ? shop : null;
+}
+
 export function shopHandleFromRequest(
   request: Request,
   shop?: string,
@@ -92,18 +105,43 @@ export function volumeBillingReturnUrl(request: Request, shop?: string): string 
   return `${appUrl}/app/billing`;
 }
 
+function isShopifyChargePath(pathname: string): boolean {
+  const path = pathname.toLowerCase();
+  return (
+    path.includes("/charges") ||
+    path.includes("/app_subscriptions") ||
+    path.includes("/confirm")
+  );
+}
+
 export function isShopifyAdminCheckoutUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    if (url.hostname !== "admin.shopify.com") return false;
     if (url.pathname.includes("/auth/")) return false;
-    return (
-      url.pathname.includes("/charges") ||
-      url.pathname.includes("/app_subscriptions") ||
-      url.pathname.includes("/confirm")
-    );
+    const isAdminHost = url.hostname === "admin.shopify.com";
+    const isMyshopifyHost = /\.myshopify\.com$/i.test(url.hostname);
+    if (!isAdminHost && !isMyshopifyHost) return false;
+    return isShopifyChargePath(url.pathname);
   } catch {
     return false;
+  }
+}
+
+/** Prefer admin.shopify.com so the embedded iframe can top-navigate same-origin. */
+export function normalizeShopifyCheckoutUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (
+      !/\.myshopify\.com$/i.test(url.hostname) ||
+      !url.pathname.includes("/admin/charges")
+    ) {
+      return value;
+    }
+    const handle = url.hostname.replace(/\.myshopify\.com$/i, "");
+    const rest = url.pathname.replace(/^\/admin/, "");
+    return `https://admin.shopify.com/store/${handle}${rest}${url.search}`;
+  } catch {
+    return value;
   }
 }
 

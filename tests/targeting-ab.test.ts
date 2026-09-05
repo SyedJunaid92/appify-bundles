@@ -12,6 +12,10 @@ import { compileOfferFromEditor } from "../app/engines/offer-compiler";
 import { validateOfferForPublish } from "../app/engines/publish-validation";
 import { DEFAULT_BUNDLE_EDITOR_STATE } from "../app/constants/bundle-editor-defaults";
 import { createOfferItem } from "../app/constants/bundle-editor-defaults";
+import {
+  filterBundlesForProduct,
+  type StorefrontBundle,
+} from "../app/models/bundle.server";
 
 describe("A/B assignment", () => {
   it("is sticky for the same seed", () => {
@@ -89,5 +93,54 @@ describe("publish validation", () => {
     });
     expect(compiled.type).toBe("gifts");
     expect(compiled.gift).toEqual({ by: "$", min: 75, ship: true });
+  });
+});
+
+function storefrontBundle(
+  overrides: Partial<StorefrontBundle> &
+    Pick<StorefrontBundle, "id" | "widgetOverrides">,
+): StorefrontBundle {
+  return {
+    title: "Complete the set",
+    handle: "complete-the-set",
+    type: "fixed_bundle",
+    status: "active",
+    discountType: "percentage",
+    discountValue: 10,
+    parentProductId: null,
+    parentVariantId: null,
+    layout: "complete",
+    items: [],
+    tiers: [],
+    ...overrides,
+  };
+}
+
+describe("storefront product matching", () => {
+  it("shows all-products offers on any product page", () => {
+    const bundles = [
+      storefrontBundle({
+        id: "all",
+        widgetOverrides: { productScope: "all", placement: "product" },
+      }),
+    ];
+    expect(
+      filterBundlesForProduct(bundles, "gid://shopify/Product/archived"),
+    ).toHaveLength(1);
+  });
+
+  it("hides selected-product offers on a different product", () => {
+    const bundles = [
+      storefrontBundle({
+        id: "selected",
+        widgetOverrides: {
+          productScope: "selected",
+          selectedProductIds: ["gid://shopify/Product/draft"],
+        },
+      }),
+    ];
+    expect(
+      filterBundlesForProduct(bundles, "gid://shopify/Product/archived"),
+    ).toHaveLength(0);
   });
 });

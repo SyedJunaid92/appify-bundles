@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { invalidateStorefrontCache } from "./bundle.server";
 
 export async function listExperiments(shop: string) {
   return prisma.bundleExperiment.findMany({
@@ -39,17 +40,21 @@ export async function createExperiment(
 }
 
 export async function startExperiment(shop: string, id: string) {
-  return prisma.bundleExperiment.update({
+  const experiment = await prisma.bundleExperiment.update({
     where: { id },
     data: { status: "running", startedAt: new Date(), endedAt: null },
   });
+  await invalidateStorefrontCache(shop);
+  return experiment;
 }
 
 export async function completeExperiment(shop: string, id: string) {
-  return prisma.bundleExperiment.update({
+  const experiment = await prisma.bundleExperiment.update({
     where: { id },
     data: { status: "completed", endedAt: new Date() },
   });
+  await invalidateStorefrontCache(shop);
+  return experiment;
 }
 
 export async function countRunningExperiments(shop: string) {

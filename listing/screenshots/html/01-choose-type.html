@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Choose a discount type</title>
+  <link rel="stylesheet" href="_shared.css" />
+  <style>
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    .swatches { display: flex; align-items: center; gap: 8px; }
+    .swatch {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid transparent;
+    }
+    .swatch.on { border-color: #1a1a1a; }
+    .section-title {
+      margin: 22px 0 10px;
+      font-size: 16px;
+      font-weight: 650;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .type {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .type-preview {
+      background: #f6f6f7;
+      padding: 14px;
+      min-height: 168px;
+    }
+    .tier {
+      background: #fff;
+      border: 1px solid #e1e3e5;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    .tier.sel { border: 2px solid #1a1a1a; }
+    .tier h3 { margin: 0; font-size: 13px; }
+    .tier .save {
+      display: inline-block;
+      margin-top: 4px;
+      background: #e3e3e3;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .tier .save.dark { background: #1a1a1a; color: #fff; }
+    .tier .price { margin-top: 4px; font-weight: 700; font-size: 13px; }
+    .tier .was { color: #999; font-weight: 400; text-decoration: line-through; }
+    .pop {
+      position: absolute; top: -9px; right: 8px;
+      background: #1a1a1a; color: #fff; font-size: 10px;
+      padding: 2px 8px; border-radius: 12px; font-weight: 600;
+    }
+    .gift-bar {
+      background: #4a4a4a; color: #fff; text-align: center;
+      padding: 7px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    }
+    .type-foot {
+      padding: 12px 14px 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .type-foot strong { font-size: 14px; }
+    .mini-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .ph { width: 36px; height: 36px; background: #ddd; border-radius: 4px; }
+    .choose { height: 32px; padding: 0 12px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="crumb">Bundles</div>
+    <div class="top">
+      <h1>Choose a discount type</h1>
+    </div>
+    <div class="meta">
+      <span>You can fully customize it later.</span>
+      <div class="swatches">
+        <span>Color theme</span>
+        <span class="swatch on" style="background:#1a1a1a"></span>
+        <span class="swatch" style="background:#d82c0d"></span>
+        <span class="swatch" style="background:#f49342"></span>
+        <span class="swatch" style="background:#eec200"></span>
+        <span class="swatch" style="background:#008060"></span>
+        <span class="swatch" style="background:#2c6ecb"></span>
+        <span class="swatch" style="background:#6f42c1"></span>
+        <span class="swatch" style="background:#e83e8c"></span>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="type">
+        <div class="type-preview">
+          <div class="tier"><h3>Single</h3><div style="color:#6d7175;font-size:12px">Standard price</div><div class="price">$600.00</div></div>
+          <div class="tier sel"><span class="pop">Most Popular</span><h3>Duo</h3><span class="save">SAVE $180.00</span><div class="price">$1,020.00 <span class="was">$1,200.00</span></div></div>
+        </div>
+        <div class="type-foot"><strong>Quantity breaks</strong><span class="btn btn-primary choose">Choose</span></div>
+      </div>
+      <div class="type">
+        <div class="type-preview">
+          <div class="tier sel"><h3>Buy 1, get 1 free</h3><span class="save dark">SAVE 50%</span><div class="price">$600.00 <span class="was">$1,200.00</span></div></div>
+          <div class="tier"><h3>Buy 2, get 3 free</h3><span class="save dark">SAVE 60%</span><div class="price">$1,200.00 <span class="was">$3,000.00</span></div></div>
+        </div>
+        <div class="type-foot"><strong>Buy X get Y</strong><span class="btn btn-primary choose">Choose</span></div>
+      </div>
+      <div class="type">
+        <div class="type-preview">
+          <div class="tier"><h3>1 pack</h3><div class="price">$600.00</div></div>
+          <div class="tier sel">
+            <h3>2 pack</h3>
+            <div class="price">$1,020.00 <span class="was">$1,200.00</span></div>
+            <div class="mini-row"><div class="ph"></div><div style="flex:1;font-size:11px">Alpine Down Jacket</div><span class="btn btn-primary choose">Choose</span></div>
+          </div>
+        </div>
+        <div class="type-foot"><strong>Mix & match</strong><span class="btn btn-primary choose">Choose</span></div>
+      </div>
+    </div>
+    <div class="section-title">More ways to grow AOV</div>
+    <div class="grid">
+      <div class="type">
+        <div class="type-preview">
+          <div class="tier sel">
+            <h3>Complete the bundle</h3>
+            <div class="mini-row"><div class="ph"></div><span>+</span><div class="ph"></div></div>
+            <div class="price">$499.96 <span class="was">$624.95</span></div>
+          </div>
+        </div>
+        <div class="type-foot"><strong>Product bundle</strong><span class="btn btn-primary choose">Choose</span></div>
+      </div>
+      <div class="type">
+        <div class="type-preview">
+          <div class="tier sel">
+            <h3>Frequently bought together</h3>
+            <div style="font-size:12px;margin-top:8px">☑ Add-on · 10% off</div>
+            <div class="price">$54.00 <span class="was">$60.00</span></div>
+          </div>
+        </div>
+        <div class="type-foot"><strong>Frequently bought together</strong><span class="btn btn-primary choose">Choose</span></div>
+      </div>
+      <div class="type">
+        <div class="type-preview">
+          <div class="tier sel"><h3>2 pack</h3><div class="price">$1,020.00</div></div>
+          <div style="font-size:12px;font-weight:600;margin:6px 0">Unlock Free gifts</div>
+          <div style="display:flex;gap:6px">
+            <div class="tier" style="flex:1;margin:0;text-align:center;font-size:10px;font-weight:600">Free shipping</div>
+            <div class="tier" style="flex:1;margin:0;text-align:center;font-size:10px;font-weight:600">Ski Wax</div>
+            <div class="tier" style="flex:1;margin:0;text-align:center;font-size:10px;opacity:.5">Locked</div>
+          </div>
+        </div>
+        <div class="type-foot"><strong>Free gifts</strong><span class="btn btn-primary choose">Choose</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

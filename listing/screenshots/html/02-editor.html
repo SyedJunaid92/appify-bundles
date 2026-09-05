@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Bundle editor</title>
+  <link rel="stylesheet" href="_shared.css" />
+  <style>
+    body, .app { padding: 0; background: #f3f4f6; }
+    .editor { display: flex; flex-direction: column; height: 900px; }
+    .header, .footer {
+      background: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      border-color: var(--border);
+    }
+    .header { height: 62px; border-bottom: 1px solid var(--border); gap: 12px; }
+    .header h1 { font-size: 15px; }
+    .header .meta { color: var(--text-muted); font-size: 13px; }
+    .body { display: flex; flex: 1; min-height: 0; }
+    .side {
+      width: 50%;
+      background: #fff;
+      border-right: 1px solid var(--border);
+      padding: 18px 20px;
+    }
+    .preview {
+      width: 50%;
+      padding: 28px 36px;
+    }
+    .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+    .tab {
+      height: 32px; padding: 0 12px; border-radius: 8px;
+      background: #f1f2f4; font-size: 13px; font-weight: 600; color: #5c5f62;
+      display: inline-flex; align-items: center;
+    }
+    .tab.on { background: #1a1a1a; color: #fff; }
+    .field { margin-bottom: 14px; }
+    .label { font-size: 12px; font-weight: 600; margin-bottom: 6px; color: #5c5f62; }
+    .input {
+      width: 100%; height: 36px; border: 1px solid #c9cccf; border-radius: 8px;
+      padding: 0 10px; font: inherit; background: #fff;
+    }
+    .bar {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+    .bar.on { border-color: #1a1a1a; box-shadow: 0 0 0 1px #1a1a1a; }
+    .bar-top { display: flex; justify-content: space-between; align-items: center; }
+    .bar strong { font-size: 13px; }
+    .bar small { color: var(--text-muted); }
+    .widget {
+      max-width: 420px;
+      margin: 40px auto 0;
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 12px 40px rgba(32,34,35,.08);
+    }
+    .w-title { font-size: 18px; font-weight: 700; margin-bottom: 14px; }
+    .opt {
+      border: 1px solid #e1e3e5;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      background: #fafbfb;
+    }
+    .opt.sel { border: 2px solid #1a1a1a; background: #fff; position: relative; }
+    .opt h3 { margin: 0; font-size: 15px; }
+    .opt .sub { color: #6d7175; font-size: 12px; margin-top: 2px; }
+    .opt .price { margin-top: 8px; font-size: 16px; font-weight: 700; }
+    .was { color: #999; font-weight: 400; text-decoration: line-through; font-size: 13px; }
+    .pop {
+      position: absolute; top: -10px; right: 10px;
+      background: #1a1a1a; color: #fff; font-size: 10px; font-weight: 700;
+      padding: 3px 8px; border-radius: 12px;
+    }
+    .cta {
+      width: 100%; height: 44px; border: 0; border-radius: 8px;
+      background: #1a1a1a; color: #fff; font-weight: 700; font-size: 14px;
+    }
+    .footer {
+      height: 64px; border-top: 1px solid var(--border); justify-content: flex-end; gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="editor">
+    <div class="header">
+      <div>
+        <h1>Buy more, save more</h1>
+        <div class="meta">Quantity breaks · Draft</div>
+      </div>
+      <span class="badge badge-draft" style="margin-left:auto">draft</span>
+    </div>
+    <div class="body">
+      <div class="side">
+        <div class="tabs">
+          <span class="tab on">Deal</span>
+          <span class="tab">Style</span>
+          <span class="tab">Targeting</span>
+        </div>
+        <div class="field">
+          <div class="label">Block title</div>
+          <div class="input">Buy more, save more</div>
+        </div>
+        <div class="bar">
+          <div class="bar-top"><strong>Single</strong><small>1 item · full price</small></div>
+        </div>
+        <div class="bar on">
+          <div class="bar-top"><strong>Duo</strong><small>2 items · 15% off</small></div>
+        </div>
+        <div class="bar">
+          <div class="bar-top"><strong>Trio</strong><small>3 items · 20% off</small></div>
+        </div>
+        <div class="field" style="margin-top:16px">
+          <div class="label">Discount name</div>
+          <div class="input">Volume — Alpine Down Jacket</div>
+        </div>
+      </div>
+      <div class="preview">
+        <div class="widget">
+          <div class="w-title">Buy more, save more</div>
+          <div class="opt">
+            <h3>Single</h3>
+            <div class="sub">Standard price</div>
+            <div class="price">$168.00</div>
+          </div>
+          <div class="opt sel">
+            <span class="pop">Most Popular</span>
+            <h3>Duo</h3>
+            <div class="sub">Save $50.40</div>
+            <div class="price">$285.60 <span class="was">$336.00</span></div>
+          </div>
+          <div class="opt">
+            <h3>Trio</h3>
+            <div class="sub">Save $100.80</div>
+            <div class="price">$403.20 <span class="was">$504.00</span></div>
+          </div>
+          <button class="cta" type="button">Add bundle to cart</button>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <span class="btn btn-secondary">Save draft</span>
+      <span class="btn btn-primary">Publish</span>
+    </div>
+  </div>
+</body>
+</html>

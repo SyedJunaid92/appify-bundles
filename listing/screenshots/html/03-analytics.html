@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Analytics</title>
+  <link rel="stylesheet" href="_shared.css" />
+  <style>
+    .filters { display: flex; gap: 8px; margin-bottom: 18px; }
+    .chip {
+      height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #c9cccf;
+      background: #fff; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center;
+    }
+    .chip.on { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+    .metric { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+    .metric span { display: block; color: var(--text-muted); font-size: 13px; }
+    .metric strong { display: block; font-size: 28px; margin-top: 6px; letter-spacing: -0.03em; }
+    .metric em { display: block; font-style: normal; color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+    .cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+    .card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+    .card h2 { margin: 0 0 14px; font-size: 16px; }
+    .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; }
+    .date { width: 64px; color: var(--text-muted); }
+    .bar-track { flex: 1; height: 18px; background: #f1f2f4; border-radius: 6px; overflow: hidden; }
+    .bar-fill { height: 100%; background: #008060; border-radius: 6px; }
+    .num { width: 72px; text-align: right; }
+    .sold { width: 64px; text-align: right; color: var(--text-muted); }
+    .ab {
+      display: flex; align-items: center; justify-content: space-between;
+      border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+      margin-bottom: 10px;
+    }
+    .ab p { margin: 4px 0 0; color: var(--text-muted); font-size: 13px; }
+    .ab-actions { display: flex; gap: 8px; align-items: center; }
+    .perf { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); }
+    .perf:first-of-type { border-top: 0; padding-top: 0; }
+    .perf p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="top">
+      <h1>Analytics</h1>
+    </div>
+    <div class="filters">
+      <span class="chip">7 days</span>
+      <span class="chip on">30 days</span>
+      <span class="chip">90 days</span>
+      <span class="chip">Custom</span>
+    </div>
+    <div class="metrics">
+      <div class="metric"><span>Widget views</span><strong>12,480</strong></div>
+      <div class="metric"><span>Add to cart</span><strong>1,864</strong><em>14.9% of views</em></div>
+      <div class="metric"><span>Purchases</span><strong>412</strong><em>3.3% conversion</em></div>
+      <div class="metric"><span>Bundle revenue</span><strong>$18,640.00</strong></div>
+    </div>
+    <div class="cols">
+      <div class="card">
+        <h2>Daily trend</h2>
+        <div class="row"><span class="date">Aug 31</span><div class="bar-track"><div class="bar-fill" style="width:62%"></div></div><span class="num">318 views</span><span class="sold">9 sold</span></div>
+        <div class="row"><span class="date">Sep 1</span><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><span class="num">392 views</span><span class="sold">14 sold</span></div>
+        <div class="row"><span class="date">Sep 2</span><div class="bar-track"><div class="bar-fill" style="width:81%"></div></div><span class="num">441 views</span><span class="sold">16 sold</span></div>
+        <div class="row"><span class="date">Sep 3</span><div class="bar-track"><div class="bar-fill" style="width:69%"></div></div><span class="num">356 views</span><span class="sold">11 sold</span></div>
+        <div class="row"><span class="date">Sep 4</span><div class="bar-track"><div class="bar-fill" style="width:88%"></div></div><span class="num">478 views</span><span class="sold">19 sold</span></div>
+        <div class="row"><span class="date">Sep 5</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="num">512 views</span><span class="sold">21 sold</span></div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:14px">
+          <h2>A/B tests</h2>
+          <div class="ab">
+            <div>
+              <strong>Duo badge copy</strong>
+              <p>50% challenger traffic</p>
+            </div>
+            <div class="ab-actions">
+              <span class="badge badge-running">running</span>
+              <span class="btn btn-secondary" style="height:32px;font-size:12px">Publish control</span>
+              <span class="btn btn-primary" style="height:32px;font-size:12px">Publish challenger</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Performance by bundle</h2>
+          <div class="perf">
+            <div><strong>Buy more, save more</strong><p>4,210 views · 128 purchases · 3.0% conv.</p></div>
+            <div style="text-align:right"><strong>$8,420.00</strong><div class="badge badge-active" style="margin-top:6px">active</div></div>
+          </div>
+          <div class="perf">
+            <div><strong>Complete the set</strong><p>3,180 views · 96 purchases · 3.0% conv.</p></div>
+            <div style="text-align:right"><strong>$6,110.00</strong><div class="badge badge-active" style="margin-top:6px">active</div></div>
+          </div>
+          <div class="perf">
+            <div><strong>Frequently bought together</strong><p>2,090 views · 84 purchases · 4.0% conv.</p></div>
+            <div style="text-align:right"><strong>$4,110.00</strong><div class="badge badge-active" style="margin-top:6px">active</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

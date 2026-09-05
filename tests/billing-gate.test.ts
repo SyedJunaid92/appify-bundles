@@ -6,6 +6,8 @@ import {
   isBillingGateExempt,
   isBillingReturn,
   isShopifyAdminCheckoutUrl,
+  normalizeShopifyCheckoutUrl,
+  shopFromAppProxy,
   shouldAutoApproveBilling,
   volumeBillingReturnUrl,
 } from "../app/utils/embedded-app";
@@ -81,6 +83,18 @@ describe("billing gate helpers", () => {
         "https://appify-bundles.vercel.app/app/billing?charge_id=1",
       ),
     ).toBe(false);
+    expect(
+      isShopifyAdminCheckoutUrl(
+        "https://appify-9217.myshopify.com/admin/charges/390488195073/33070448895/RecurringApplicationCharge/confirm_recurring_application_charge?signature=abc",
+      ),
+    ).toBe(true);
+    expect(
+      normalizeShopifyCheckoutUrl(
+        "https://appify-9217.myshopify.com/admin/charges/390488195073/33070448895/RecurringApplicationCharge/confirm_recurring_application_charge?signature=abc",
+      ),
+    ).toBe(
+      "https://admin.shopify.com/store/appify-9217/charges/390488195073/33070448895/RecurringApplicationCharge/confirm_recurring_application_charge?signature=abc",
+    );
   });
 
   it("reads Shopify's billing confirmation URL from the 401 response", () => {
@@ -97,6 +111,21 @@ describe("billing gate helpers", () => {
     expect(billingErrorMessage(new Error("plan missing"))).toContain(
       "plan missing",
     );
+  });
+
+  it("reads the shop from a signed app proxy request without a session", () => {
+    const request = new Request(
+      "https://app.example/proxy/bundles?shop=appify-9217.myshopify.com&product_id=1",
+    );
+    expect(shopFromAppProxy(request, undefined)).toBe(
+      "appify-9217.myshopify.com",
+    );
+    expect(shopFromAppProxy(request, "appify-9217.myshopify.com")).toBe(
+      "appify-9217.myshopify.com",
+    );
+    expect(
+      shopFromAppProxy(new Request("https://app.example/proxy/bundles"), null),
+    ).toBeNull();
   });
 
   it("keeps Shopify embed params on the billing redirect", () => {

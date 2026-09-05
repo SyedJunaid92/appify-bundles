@@ -6,6 +6,7 @@ export async function invalidateShopCaches(shop: string) {
   await Promise.all([
     bumpCacheVersion("billing", shop),
     bumpCacheVersion("analytics", shop),
+    bumpCacheVersion("storefront", shop),
   ]);
 }
 
