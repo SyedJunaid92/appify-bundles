@@ -280,14 +280,15 @@ function PreviewBar({
           </span>
         )}
         {showExtras && bar.upsell && (
-          <div className="be-widget-preview__upsell">
+          <label className="be-widget-preview__upsell">
+            <input type="checkbox" disabled checked={false} readOnly />
             {bar.upsell.imageUrl ? (
               <img src={bar.upsell.imageUrl} alt="" />
             ) : (
               <span className="be-widget-preview__placeholder" />
             )}
             <span>{bar.upsell.text || bar.upsell.productTitle}</span>
-          </div>
+          </label>
         )}
         {showExtras &&
           (bar.gifts ?? []).map((gift) => (

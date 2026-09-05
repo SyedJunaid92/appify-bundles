@@ -827,6 +827,42 @@
     title.textContent = bundle.blockTitle || config.blockTitle || bundle.title;
     container.appendChild(title);
     renderCountdown(container, config.features);
+    var upsellState = { accepted: false };
+    var upsellHost = document.createElement("div");
+    upsellHost.className = "appify-bundle-widget__upsell-host";
+
+    function refreshUpsell(tier) {
+      upsellHost.textContent = "";
+      upsellState.accepted = false;
+      var upsell = tier && tier.upsell;
+      if (!upsell || !upsell.variantId) return;
+
+      var row = document.createElement("label");
+      row.className = "appify-bundle-widget__upsell";
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = false;
+      box.addEventListener("change", function () {
+        upsellState.accepted = box.checked;
+      });
+      row.appendChild(box);
+      if (upsell.imageUrl) {
+        var img = document.createElement("img");
+        img.src = upsell.imageUrl;
+        img.alt = "";
+        row.appendChild(img);
+      }
+      var copy = document.createElement("span");
+      copy.className = "appify-bundle-widget__item-copy";
+      copy.innerHTML = "<strong></strong><em></em>";
+      copy.querySelector("strong").textContent =
+        upsell.text || upsell.productTitle || "Add this item";
+      copy.querySelector("em").textContent =
+        "Optional — added only if you check this";
+      row.appendChild(copy);
+      upsellHost.appendChild(row);
+    }
+
     selected.current = renderTierOptions(
       container,
       bundle,
@@ -837,6 +873,7 @@
       currency,
       function (tier) {
         selected.current = tier;
+        refreshUpsell(tier);
         trackEvent(analyticsUrl, bundle.id, "click", {
           experimentId: bundle.experimentId,
           variantId: bundle.experimentVariant,
@@ -844,6 +881,7 @@
       },
       container.dataset.productTitle || "",
     );
+    refreshUpsell(selected.current);
 
     var next = tiers.find(function (tier) {
       return tier.minQuantity > (selected.current.minQuantity || 1);
@@ -905,7 +943,11 @@
           });
         });
       }
-      if (selected.current.upsell && selected.current.upsell.variantId) {
+      if (
+        upsellState.accepted &&
+        selected.current.upsell &&
+        selected.current.upsell.variantId
+      ) {
         items.push({
           id: numericVariantId(selected.current.upsell.variantId),
           quantity: 1,
@@ -921,6 +963,7 @@
         });
       });
     });
+    container.appendChild(upsellHost);
     container.appendChild(button);
   }
 

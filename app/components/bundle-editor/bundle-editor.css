@@ -236,6 +236,13 @@
   cursor: pointer;
 }
 
+.be-help {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6d7175;
+}
+
 .be-radio-group {
   display: flex;
   flex-direction: column;

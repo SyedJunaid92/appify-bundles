@@ -75,6 +75,7 @@ export default function App() {
               </>
             ) : null}
             <s-link href="/app/billing">Billing</s-link>
+            <s-link href="/app/privacy">Privacy</s-link>
           </s-app-nav>
           <div className="app-shell">
             <div className="app-shell__theme-toggle">

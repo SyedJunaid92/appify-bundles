@@ -19,7 +19,7 @@ export function defaultUpsell(): BarUpsell {
     discountValue: 20,
     text: "+ Add at {{saved_percentage}} discount",
     imageSize: 30,
-    selectedByDefault: true,
+    selectedByDefault: false,
     visibleWhenSelected: false,
     enableSubscription: true,
     subscriptionMode: "Follow deal subscription",
@@ -299,21 +299,10 @@ export function BarFeatureEditor({ bar, onUpdate, onPickProduct }: Props) {
               onUpdate({ upsell: { ...bar.upsell!, imageSize: v } })
             }
           />
-          <label className="be-checkbox">
-            <input
-              type="checkbox"
-              checked={bar.upsell.selectedByDefault}
-              onChange={(e) =>
-                onUpdate({
-                  upsell: {
-                    ...bar.upsell!,
-                    selectedByDefault: e.target.checked,
-                  },
-                })
-              }
-            />
-            Selected by default
-          </label>
+          <p className="be-help">
+            Shoppers must check this add-on on the product page. It is never
+            pre-selected or added automatically.
+          </p>
           <label className="be-checkbox">
             <input
               type="checkbox"

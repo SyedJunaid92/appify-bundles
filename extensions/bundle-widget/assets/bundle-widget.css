@@ -252,6 +252,29 @@
   margin-top: 0.2rem;
 }
 
+.appify-bundle-widget__upsell-host {
+  margin-bottom: 0.75rem;
+}
+
+.appify-bundle-widget__upsell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--ab-border);
+  border-radius: var(--ab-radius);
+  background: var(--ab-secondary);
+  cursor: pointer;
+}
+
+.appify-bundle-widget__upsell img {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .appify-bundle-widget__items {
   display: flex;
   flex-direction: column;
