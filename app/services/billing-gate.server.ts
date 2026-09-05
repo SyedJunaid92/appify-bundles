@@ -1,3 +1,4 @@
+import { redirect } from "react-router";
 import {
   APPIFY_BUNDLES,
   SHOPIFY_BILLING_PLAN_KEYS,
@@ -6,6 +7,9 @@ import {
 import { authenticate } from "../shopify.server";
 import { isShopBillingTestMode } from "./billing-mode.server";
 import {
+  appendEmbedSearchParams,
+  billingErrorMessage,
+  confirmationUrlFromBillingResponse,
   isBillingGateExempt,
   isBillingReturn,
   shouldAutoApproveBilling,
@@ -50,11 +54,36 @@ export async function enforceVolumeBillingGate(
     return { hasPaidPlan: false, isTest };
   }
 
-  throw await billing.request({
-    plan: APPIFY_BUNDLES,
-    isTest,
-    returnUrl: volumeBillingReturnUrl(request),
-  });
+  const started = await startVolumeBilling(request, billing, isTest);
+  if (started.confirmationUrl || started.error) {
+    throw redirect(appendEmbedSearchParams("/app/billing", url.search));
+  }
+
+  return { hasPaidPlan: false, isTest };
+}
+
+export async function startVolumeBilling(
+  request: Request,
+  billing: AdminBilling,
+  isTest: boolean,
+): Promise<{ confirmationUrl?: string; error?: string }> {
+  try {
+    throw await billing.request({
+      plan: APPIFY_BUNDLES,
+      isTest,
+      returnUrl: volumeBillingReturnUrl(request),
+    });
+  } catch (error) {
+    const confirmationUrl = confirmationUrlFromBillingResponse(error);
+    if (confirmationUrl) {
+      if (!request.headers.get("authorization")) {
+        throw error;
+      }
+      return { confirmationUrl };
+    }
+    if (error instanceof Response) throw error;
+    return { error: billingErrorMessage(error) };
+  }
 }
 
 export async function requestVolumeBillingIfNeeded(
@@ -66,12 +95,9 @@ export async function requestVolumeBillingIfNeeded(
   const url = new URL(request.url);
   const { isTest, hasPaidPlan } = await checkVolumeBilling(billing, admin, shop);
   if (hasPaidPlan || !shouldAutoApproveBilling(url)) {
-    return { hasPaidPlan, isTest };
+    return { hasPaidPlan, isTest, confirmationUrl: undefined, error: undefined };
   }
 
-  throw await billing.request({
-    plan: APPIFY_BUNDLES,
-    isTest,
-    returnUrl: volumeBillingReturnUrl(request),
-  });
+  const started = await startVolumeBilling(request, billing, isTest);
+  return { hasPaidPlan, isTest, ...started };
 }

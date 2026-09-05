@@ -9,6 +9,11 @@ export const EMBED_SEARCH_PARAMS = [
   "timestamp",
 ] as const;
 
+const BILLING_RETURN_PARAMS = ["shop", "host", "embedded"] as const;
+
+export const BILLING_REAUTH_HEADER =
+  "X-Shopify-API-Request-Failure-Reauthorize-Url";
+
 export function appendEmbedSearchParams(
   path: string,
   currentSearch: string,
@@ -54,5 +59,39 @@ export function isBillingGateExempt(pathname: string): boolean {
 export function volumeBillingReturnUrl(request: Request): string {
   const url = new URL(request.url);
   const appUrl = (process.env.SHOPIFY_APP_URL || url.origin).replace(/\/$/, "");
-  return appendEmbedSearchParams(`${appUrl}/app/billing`, url.search);
+  const target = new URLSearchParams();
+  for (const key of BILLING_RETURN_PARAMS) {
+    const value = url.searchParams.get(key);
+    if (value) target.set(key, value);
+  }
+  const query = target.toString();
+  return query ? `${appUrl}/app/billing?${query}` : `${appUrl}/app/billing`;
+}
+
+export function confirmationUrlFromBillingResponse(
+  error: unknown,
+): string | null {
+  if (!(error instanceof Response)) return null;
+  return (
+    error.headers.get(BILLING_REAUTH_HEADER) || error.headers.get("Location")
+  );
+}
+
+export function billingErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "errorData" in error) {
+    const data = (error as { errorData: unknown }).errorData;
+    if (Array.isArray(data)) {
+      const messages = data
+        .map((item) => {
+          if (item && typeof item === "object" && "message" in item) {
+            return String((item as { message: unknown }).message);
+          }
+          return null;
+        })
+        .filter((message): message is string => Boolean(message));
+      if (messages.length) return messages.join(" ");
+    }
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return "Shopify could not start billing approval. Try Continue on Shopify again.";
 }

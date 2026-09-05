@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   appendEmbedSearchParams,
+  billingErrorMessage,
+  confirmationUrlFromBillingResponse,
   isBillingGateExempt,
   isBillingReturn,
   shouldAutoApproveBilling,
@@ -44,13 +46,30 @@ describe("billing gate helpers", () => {
   it("returns declined merchants to billing, not the app home", () => {
     const returnUrl = volumeBillingReturnUrl(
       new Request(
-        "https://app.example/app?shop=demo.myshopify.com&host=abc&embedded=1",
+        "https://app.example/app?shop=demo.myshopify.com&host=abc&embedded=1&id_token=huge.jwt.token",
       ),
     );
     expect(returnUrl).toContain("/app/billing");
     expect(returnUrl).not.toContain("approve=1");
+    expect(returnUrl).not.toContain("id_token");
     expect(returnUrl).toContain("shop=demo.myshopify.com");
     expect(returnUrl).toContain("host=abc");
+  });
+
+  it("reads Shopify's billing confirmation URL from the 401 response", () => {
+    const url = confirmationUrlFromBillingResponse(
+      new Response(null, {
+        status: 401,
+        headers: {
+          "X-Shopify-API-Request-Failure-Reauthorize-Url":
+            "https://admin.shopify.com/charges/confirm",
+        },
+      }),
+    );
+    expect(url).toBe("https://admin.shopify.com/charges/confirm");
+    expect(billingErrorMessage(new Error("plan missing"))).toContain(
+      "plan missing",
+    );
   });
 
   it("keeps Shopify embed params on the billing redirect", () => {

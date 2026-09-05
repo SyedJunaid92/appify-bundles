@@ -3,11 +3,11 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
+import { useEffect } from "react";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import {
-  APPIFY_BUNDLES,
   BILLING_PLAN_KEYS,
   BILLING_TIERS,
   MONTHLY_CHARGE_CAP,
@@ -24,17 +24,20 @@ import {
   billingModeLabel,
   isShopBillingTestMode,
 } from "../services/billing-mode.server";
-import { requestVolumeBillingIfNeeded } from "../services/billing-gate.server";
-import { volumeBillingReturnUrl } from "../utils/embedded-app";
+import {
+  requestVolumeBillingIfNeeded,
+  startVolumeBilling,
+} from "../services/billing-gate.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, admin, session } = await authenticate.admin(request);
-  const { isTest } = await requestVolumeBillingIfNeeded(
+  const approval = await requestVolumeBillingIfNeeded(
     request,
     billing,
     admin,
     session.shop,
   );
+  const isTest = approval.isTest;
 
   const billingCheck = await billing.check({
     plans: [...SHOPIFY_BILLING_PLAN_KEYS],
@@ -62,6 +65,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     trialDays: TRIAL_DAYS,
     usageRate: USAGE_RATE_PER_ORDER,
     usageThreshold: USAGE_ORDER_THRESHOLD,
+    confirmationUrl: approval.confirmationUrl,
+    requestError: approval.error,
   };
 };
 
@@ -89,11 +94,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { success: "Billing cancelled." };
   }
 
-  return billing.request({
-    plan: APPIFY_BUNDLES,
-    isTest,
-    returnUrl: volumeBillingReturnUrl(request),
-  });
+  const started = await startVolumeBilling(request, billing, isTest);
+  if (started.confirmationUrl) {
+    return { confirmationUrl: started.confirmationUrl };
+  }
+  return {
+    error:
+      started.error ??
+      "Shopify could not start billing approval. Try Continue on Shopify again.",
+  };
 };
 
 function historyPlanName(planKey: string) {
@@ -117,11 +126,27 @@ export default function BillingPage() {
     trialDays,
     usageRate,
     usageThreshold,
+    confirmationUrl,
+    requestError,
   } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
   const currentTier = tiers[currentPlan];
+  const shopifyUrl =
+    (actionData &&
+      "confirmationUrl" in actionData &&
+      actionData.confirmationUrl) ||
+    confirmationUrl;
+  const requestFailed =
+    requestError ||
+    (actionData && "error" in actionData ? actionData.error : null);
+
+  useEffect(() => {
+    if (!shopifyUrl) return;
+    const target = window.top ?? window;
+    target.location.href = shopifyUrl;
+  }, [shopifyUrl]);
 
   return (
     <s-page
@@ -131,8 +156,11 @@ export default function BillingPage() {
           : "One plan. Price follows your orders."
       }
     >
-      {actionData && "error" in actionData && actionData.error ? (
-        <s-banner tone="critical">{actionData.error}</s-banner>
+      {requestFailed ? (
+        <s-banner tone="critical">{requestFailed}</s-banner>
+      ) : null}
+      {shopifyUrl ? (
+        <s-banner tone="info">Opening Shopify to approve billing…</s-banner>
       ) : null}
       {actionData && "success" in actionData && actionData.success ? (
         <s-banner tone="success">{actionData.success}</s-banner>
