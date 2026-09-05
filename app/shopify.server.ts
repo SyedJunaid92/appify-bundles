@@ -144,7 +144,11 @@ const shopify = shopifyApp({
   },
   hooks: {
     afterAuth: async ({ session, admin }) => {
-      await shopify.registerWebhooks({ session });
+      try {
+        await shopify.registerWebhooks({ session });
+      } catch (error) {
+        console.error("Failed to register webhooks:", error);
+      }
       try {
         const [{ upsertShopProfile }, db] = await Promise.all([
           import("./models/daily-stats.server"),

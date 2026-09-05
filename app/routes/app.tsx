@@ -1,4 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs, ShouldRevalidateFunctionArgs } from "react-router";
+import { useEffect } from "react";
 import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
@@ -104,8 +105,24 @@ export default function App() {
   );
 }
 
+function FirstLoadRetry() {
+  useEffect(() => {
+    const key = "appify-first-load-retry";
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    window.location.reload();
+  }, []);
+  return null;
+}
+
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+  return (
+    <>
+      <FirstLoadRetry />
+      {boundary.error(error)}
+    </>
+  );
 }
 
 export const headers: HeadersFunction = (headersArgs) => {

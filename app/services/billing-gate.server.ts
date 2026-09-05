@@ -54,12 +54,7 @@ export async function enforceVolumeBillingGate(
     return { hasPaidPlan: false, isTest };
   }
 
-  const started = await startVolumeBilling(request, billing, isTest, shop);
-  if (started.confirmationUrl || started.error) {
-    throw redirect(appendEmbedSearchParams("/app/billing", url.search));
-  }
-
-  return { hasPaidPlan: false, isTest };
+  throw redirect(appendEmbedSearchParams("/app/billing", url.search));
 }
 
 export async function startVolumeBilling(
