@@ -93,6 +93,11 @@ export function shopHandleFromRequest(
  * Return to the embedded admin app, not vercel.app. A hosted return URL
  * bounces through /auth/session-token and leaves a blank Shopify iframe.
  */
+export function shopifyAppPricingPlansUrl(storeHandle: string): string {
+  const appHandle = process.env.SHOPIFY_APP_HANDLE || "appify-bundles";
+  return `https://admin.shopify.com/store/${storeHandle}/charges/${appHandle}/pricing_plans`;
+}
+
 export function volumeBillingReturnUrl(request: Request, shop?: string): string {
   const handle = shopHandleFromRequest(request, shop);
   const appHandle = process.env.SHOPIFY_APP_HANDLE || "appify-bundles";
@@ -110,6 +115,7 @@ function isShopifyChargePath(pathname: string): boolean {
   return (
     path.includes("/charges") ||
     path.includes("/app_subscriptions") ||
+    path.includes("/pricing_plans") ||
     path.includes("/confirm")
   );
 }

@@ -1,10 +1,11 @@
 import { redirect } from "react-router";
 import {
-  APPIFY_BUNDLES,
+  APPIFY_BUNDLES_HANDLE,
   SHOPIFY_BILLING_PLAN_KEYS,
   isVolumeSubscription,
 } from "../constants/billing";
 import { authenticate } from "../shopify.server";
+import { isShopifyAppPricingEnabled } from "../utils/app-events";
 import { isShopBillingTestMode } from "./billing-mode.server";
 import {
   appendEmbedSearchParams,
@@ -12,6 +13,8 @@ import {
   confirmationUrlFromBillingResponse,
   isBillingGateExempt,
   isBillingReturn,
+  shopHandleFromRequest,
+  shopifyAppPricingPlansUrl,
   shouldAutoApproveBilling,
   volumeBillingReturnUrl,
 } from "../utils/embedded-app";
@@ -63,9 +66,14 @@ export async function startVolumeBilling(
   isTest: boolean,
   shop?: string,
 ): Promise<{ confirmationUrl?: string; error?: string }> {
+  const storeHandle = shopHandleFromRequest(request, shop);
+  if (isShopifyAppPricingEnabled() && storeHandle) {
+    return { confirmationUrl: shopifyAppPricingPlansUrl(storeHandle) };
+  }
+
   try {
     throw await billing.request({
-      plan: APPIFY_BUNDLES,
+      plan: APPIFY_BUNDLES_HANDLE,
       isTest,
       returnUrl: volumeBillingReturnUrl(request, shop),
     });

@@ -9,7 +9,7 @@ import { calculateMonthlyCharge } from "../utils/billing-calculation";
 import {
   isActiveSubscriptionStatus,
   isInactiveSubscriptionStatus,
-  parsePlanKeyFromSubscriptionName,
+  parsePlanKeyFromSubscription,
   type AppSubscriptionWebhookPayload,
 } from "../schemas/subscription-webhook.schema";
 import { getOrCreateShopBilling } from "../models/billing.server";
@@ -30,7 +30,7 @@ export async function syncSubscriptionFromWebhook(
   payload: AppSubscriptionWebhookPayload,
 ): Promise<SubscriptionSyncResult> {
   const subscription = payload.app_subscription;
-  const planKey = parsePlanKeyFromSubscriptionName(subscription.name);
+  const planKey = parsePlanKeyFromSubscription(subscription);
   const subscriptionId = subscription.admin_graphql_api_id;
   const status = subscription.status;
 

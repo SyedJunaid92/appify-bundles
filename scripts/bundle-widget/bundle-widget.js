@@ -565,10 +565,10 @@
         id: item.variantId,
         productId: item.productId,
         variantId: item.variantId,
-        title: item.title,
+        title: item.title || item.productTitle,
         quantity: item.quantity || 1,
         role: item.role || "pool",
-        selectedByDefault: Boolean(item.selectedByDefault),
+        selectedByDefault: false,
         imageUrl: item.imageUrl,
         price: item.price,
       };
@@ -1052,8 +1052,8 @@
     var addons = offerItems(bundle).filter(function (item) {
       return item.role === "addon" || item.role === "optional";
     });
-    var selected = addons.map(function (item) {
-      return Boolean(item.selectedByDefault);
+    var selected = addons.map(function () {
+      return false;
     });
     var title = document.createElement("div");
     title.className = "appify-bundle-widget__title";
@@ -1119,7 +1119,7 @@
     container.appendChild(button);
   }
 
-  function renderGifts(container, data) {
+  function renderGifts(container, data, analyticsUrl) {
     var bundle = data.bundles[0];
     var config = bundle.config || {};
     var title = document.createElement("div");
@@ -1137,9 +1137,10 @@
           ? cart.item_count
           : (cart.total_price || 0) / 100;
         var remaining = Math.max(0, threshold - current);
+        var unlocked = remaining <= 0;
         renderProgress(
           container,
-          remaining <= 0
+          unlocked
             ? config.giftFreeShipping
               ? "Free gift unlocked — free shipping too"
               : "Free gift unlocked"
@@ -1148,45 +1149,126 @@
               : "Add " + formatMoney(remaining * 100, container.dataset.currency) + " more to unlock a gift",
           threshold > 0 ? current / threshold : 1,
         );
-        if (remaining <= 0) {
-          syncGifts(bundle, cart, config);
-        }
+        renderGiftChoices(container, bundle, cart, unlocked, analyticsUrl);
       })
       .catch(function () {
         renderProgress(container, "Add more to unlock a free gift", 0.2);
       });
   }
 
-  function syncGifts(bundle, cart, config) {
+  function renderGiftChoices(container, bundle, cart, unlocked, analyticsUrl) {
     var gifts = offerItems(bundle).filter(function (item) {
       return item.role === "gift" && item.variantId;
     });
+    if (!gifts.length) return;
+
     var existing = (cart.items || []).filter(function (item) {
       return item.properties && item.properties._appify_gift === "1";
     });
+    var currency = container.dataset.currency;
+    var pending = [];
+    var list = document.createElement("div");
+    list.className = "appify-bundle-widget__items";
+
     gifts.forEach(function (gift) {
       var already = existing.some(function (item) {
         return String(item.variant_id) === String(numericVariantId(gift.variantId));
       });
-      if (already) return;
-      fetch(cartRoot() + "cart/add.js", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          items: [
-            {
-              id: numericVariantId(gift.variantId),
-              quantity: 1,
-              properties: lineProps(bundle, "gift", {
-                instance: newInstanceId(),
-                gift: true,
-              }),
-            },
-          ],
-        }),
-      }).catch(function () {});
+      if (!already) pending.push(gift);
+
+      var row = document.createElement("div");
+      row.className = "appify-bundle-widget__item";
+
+      if (gift.imageUrl) {
+        var img = document.createElement("img");
+        img.className = "appify-bundle-widget__item-img";
+        img.src = gift.imageUrl;
+        img.alt = "";
+        row.appendChild(img);
+      }
+
+      var copy = document.createElement("div");
+      copy.className = "appify-bundle-widget__item-copy";
+      var name = document.createElement("strong");
+      name.textContent = gift.title || gift.productTitle || "Free gift";
+      copy.appendChild(name);
+
+      var price = document.createElement("div");
+      price.className = "appify-bundle-widget__gift-price";
+      var priceCents = Math.round((Number(gift.price) || 0) * 100);
+      if (priceCents > 0) {
+        var strike = document.createElement("span");
+        strike.className = "appify-bundle-widget__strike";
+        strike.textContent = formatMoney(priceCents, currency);
+        price.appendChild(strike);
+        price.appendChild(document.createTextNode(" "));
+      }
+      var free = document.createElement("span");
+      free.textContent = already
+        ? "Free · in your cart"
+        : unlocked
+          ? "Free if you add it"
+          : "Free after you unlock and add it";
+      price.appendChild(free);
+      copy.appendChild(price);
+      row.appendChild(copy);
+      list.appendChild(row);
     });
+
+    container.appendChild(list);
+
+    if (!unlocked) {
+      var locked = document.createElement("div");
+      locked.className = "appify-bundle-widget__hint";
+      locked.textContent =
+        "Gifts stay out of your cart until you unlock the offer and tap Add free gift.";
+      container.appendChild(locked);
+      return;
+    }
+
+    if (!pending.length) {
+      var added = document.createElement("div");
+      added.className = "appify-bundle-widget__hint";
+      added.textContent = "These free gifts are already in your cart.";
+      container.appendChild(added);
+      return;
+    }
+
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "appify-bundle-widget__button";
+    button.textContent =
+      pending.length === 1
+        ? "Add free gift"
+        : "Add " + pending.length + " free gifts";
+    button.addEventListener("click", function () {
+      var instance = newInstanceId();
+      addItems(
+        pending.map(function (gift) {
+          return {
+            id: numericVariantId(gift.variantId),
+            quantity: gift.quantity || 1,
+            properties: lineProps(bundle, "gift", {
+              instance: instance,
+              gift: true,
+            }),
+          };
+        }),
+        button,
+      ).then(function () {
+        trackEvent(analyticsUrl, bundle.id, "add_to_cart", {
+          experimentId: bundle.experimentId,
+          variantId: bundle.experimentVariant,
+        });
+      });
+    });
+    container.appendChild(button);
+
+    var consent = document.createElement("div");
+    consent.className = "appify-bundle-widget__hint";
+    consent.textContent =
+      "These gifts are optional and free. Nothing is added until you tap the button.";
+    container.appendChild(consent);
   }
 
   function renderWidget(container, data, analyticsUrl) {
@@ -1222,7 +1304,7 @@
     } else if (type === "fbt_upsell") {
       renderFbt(container, data, analyticsUrl);
     } else if (type === "gifts") {
-      renderGifts(container, data);
+      renderGifts(container, data, analyticsUrl);
     } else {
       renderQuantityLike(container, data, analyticsUrl, type);
     }

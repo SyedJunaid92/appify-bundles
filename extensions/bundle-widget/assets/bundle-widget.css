@@ -246,6 +246,12 @@
   width: 0;
 }
 
+.appify-bundle-widget__gift-price {
+  font-size: 13px;
+  color: var(--ab-muted);
+  margin-top: 0.2rem;
+}
+
 .appify-bundle-widget__items {
   display: flex;
   flex-direction: column;

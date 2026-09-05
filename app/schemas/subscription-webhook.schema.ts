@@ -46,6 +46,16 @@ export function parsePlanKeyFromSubscriptionName(
   return canonicalizePlanKey(name);
 }
 
+export function parsePlanKeyFromSubscription(subscription: {
+  name?: string | null;
+  plan_handle?: string | null;
+}): BillingPlanKey | typeof APPIFY_BUNDLES | null {
+  return (
+    parsePlanKeyFromSubscriptionName(subscription.name ?? "") ??
+    parsePlanKeyFromSubscriptionName(subscription.plan_handle ?? "")
+  );
+}
+
 export function isActiveSubscriptionStatus(
   status: AppSubscriptionStatus,
 ): boolean {

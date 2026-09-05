@@ -3,6 +3,17 @@
   "installCommand": "npm install",
   "framework": "react-router",
   "regions": ["icn1"],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
+      ]
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/billing-sync",

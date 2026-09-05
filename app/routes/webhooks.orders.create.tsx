@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticateWebhook } from "../services/webhook-auth.server";
 import { incrementOrderCount } from "../models/billing.server";
 import { trackBundlePurchasesFromOrder } from "../services/analytics.server";
+import { reportOrderProcessedEvent } from "../services/app-events.server";
 import { checkTierLimitAfterOrder } from "../services/billing-enforcement.server";
 import { finishWebhookWork } from "../services/webhook-defer.server";
 
@@ -28,7 +29,13 @@ async function processOrderWebhook(shop: string, order: OrderWebhookPayload) {
   const orderId = String(order.id ?? "");
   if (!orderId) return;
 
-  await incrementOrderCount(shop, orderId);
+  const counted = await incrementOrderCount(shop, orderId);
+  if (counted) {
+    const reported = await reportOrderProcessedEvent(shop, orderId);
+    if (!reported.success) {
+      console.error("[app-events] order_processed failed", shop, reported.error);
+    }
+  }
   await checkTierLimitAfterOrder(shop);
   if (order.id != null) {
     await trackBundlePurchasesFromOrder(shop, {

@@ -1,48 +1,53 @@
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { Form, useActionData, useLoaderData } from "react-router";
+import { useLoaderData } from "react-router";
 
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const errors = loginErrorMessage(await login(request));
+function shopProvidedByShopify(request: Request): boolean {
+  return Boolean(new URL(request.url).searchParams.get("shop"));
+}
 
-  return { errors };
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  if (!shopProvidedByShopify(request)) {
+    return { shopProvided: false, errors: {} };
+  }
+
+  const errors = loginErrorMessage(await login(request));
+  return { shopProvided: true, errors };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const errors = loginErrorMessage(await login(request));
+  if (!shopProvidedByShopify(request)) {
+    return { shopProvided: false, errors: {} };
+  }
 
-  return {
-    errors,
-  };
+  const errors = loginErrorMessage(await login(request));
+  return { errors };
 };
 
 export default function Auth() {
-  const loaderData = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const [shop, setShop] = useState("");
-  const { errors } = actionData || loaderData;
+  const { shopProvided, errors } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded={false}>
-      <s-page>
-        <Form method="post">
-        <s-section heading="Log in">
-          <s-text-field
-            name="shop"
-            label="Shop domain"
-            details="example.myshopify.com"
-            value={shop}
-            onChange={(e) => setShop(e.currentTarget.value)}
-            autocomplete="on"
-            error={errors.shop}
-          ></s-text-field>
-          <s-button type="submit">Log in</s-button>
+      <s-page heading="Appify Bundles">
+        <s-section heading="Install from Shopify">
+          <s-paragraph>
+            Appify Bundles is installed from the Shopify App Store and opened
+            from your Shopify admin. This app does not ask you to enter a shop
+            domain.
+          </s-paragraph>
+          {errors.shop ? (
+            <s-banner tone="critical">{errors.shop}</s-banner>
+          ) : null}
+          {!shopProvided ? (
+            <s-link href="https://apps.shopify.com/appify-bundles">
+              Open in the Shopify App Store
+            </s-link>
+          ) : null}
         </s-section>
-        </Form>
       </s-page>
     </AppProvider>
   );

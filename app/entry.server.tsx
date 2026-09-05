@@ -5,6 +5,7 @@ import { createReadableStreamFromReadable } from "@react-router/node";
 import { type EntryContext } from "react-router";
 import { isbot } from "isbot";
 import { addDocumentResponseHeaders } from "./shopify.server";
+import { applyHttpsHeaders, httpsRedirectUrl } from "./utils/https.server";
 
 export const streamTimeout = 5000;
 
@@ -14,7 +15,18 @@ export default async function handleRequest(
   responseHeaders: Headers,
   reactRouterContext: EntryContext
 ) {
+  const secureUrl = httpsRedirectUrl(request);
+  if (secureUrl) {
+    const redirectHeaders = new Headers({ Location: secureUrl });
+    applyHttpsHeaders(redirectHeaders, request);
+    return new Response(null, {
+      status: 308,
+      headers: redirectHeaders,
+    });
+  }
+
   addDocumentResponseHeaders(request, responseHeaders);
+  applyHttpsHeaders(responseHeaders, request);
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? '')
     ? "onAllReady"

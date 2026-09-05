@@ -107,6 +107,8 @@ describe("usageChargeForSubscription", () => {
     expect(usageChargeForSubscription(400, APPIFY_BUNDLES)).toBe(50);
     expect(usageChargeForSubscription(800, APPIFY_BUNDLES)).toBe(125);
     expect(usageChargeForSubscription(2000, APPIFY_BUNDLES)).toBe(180);
+    expect(subscribedBaseAmount("appify-bundles")).toBe(0);
+    expect(usageChargeForSubscription(400, "appify-bundles")).toBe(50);
   });
 });
 

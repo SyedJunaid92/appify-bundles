@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parsePlanKeyFromSubscriptionName,
+  parsePlanKeyFromSubscription,
   isActiveSubscriptionStatus,
   isInactiveSubscriptionStatus,
   appSubscriptionWebhookSchema,
@@ -17,10 +18,31 @@ describe("parsePlanKeyFromSubscriptionName", () => {
     expect(parsePlanKeyFromSubscriptionName("APPIFY_BUNDLES")).toBe(
       "APPIFY_BUNDLES",
     );
+    expect(parsePlanKeyFromSubscriptionName("appify-bundles")).toBe(
+      "APPIFY_BUNDLES",
+    );
+    expect(parsePlanKeyFromSubscriptionName("Appify Bundles")).toBe(
+      "APPIFY_BUNDLES",
+    );
   });
 
   it("returns null for unknown names", () => {
     expect(parsePlanKeyFromSubscriptionName("Growth 1K")).toBeNull();
+  });
+
+  it("reads the Shopify App Pricing handle", () => {
+    expect(
+      parsePlanKeyFromSubscription({
+        name: "Appify Bundles",
+        plan_handle: "appify-bundles",
+      }),
+    ).toBe("APPIFY_BUNDLES");
+    expect(
+      parsePlanKeyFromSubscription({
+        name: "Unknown",
+        plan_handle: "appify-bundles",
+      }),
+    ).toBe("APPIFY_BUNDLES");
   });
 });
 

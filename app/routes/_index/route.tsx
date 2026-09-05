@@ -1,9 +1,16 @@
-import type { LoaderFunctionArgs } from "react-router";
-import { redirect, Form, useLoaderData } from "react-router";
-
-import { login } from "../../shopify.server";
+import type { LoaderFunctionArgs, MetaFunction } from "react-router";
+import { Link, redirect } from "react-router";
 
 import styles from "./styles.module.css";
+
+export const meta: MetaFunction = () => [
+  { title: "Appify Bundles — Shopify product bundles and quantity breaks" },
+  {
+    name: "description",
+    content:
+      "Appify Bundles is a Shopify app for quantity breaks, BOGO offers, mix-and-match deals, product bundles, and optional free gifts.",
+  },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -12,45 +19,51 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
 
-  return { showForm: Boolean(login) };
+  return null;
 };
 
 export default function App() {
-  const { showForm } = useLoaderData<typeof loader>();
-
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>Appify Bundles</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          A Shopify app that adds quantity breaks, BOGO offers, mix-and-match
+          deals, product bundles, frequently bought together add-ons, and
+          optional free gifts to your online store.
         </p>
-        {showForm && (
-          <Form className={styles.form} method="post" action="/auth/login">
-            <label className={styles.label}>
-              <span>Shop domain</span>
-              <input className={styles.input} type="text" name="shop" />
-              <span>e.g: my-shop-domain.myshopify.com</span>
-            </label>
-            <button className={styles.button} type="submit">
-              Log in
-            </button>
-          </Form>
-        )}
+        <p className={styles.install}>
+          Install Appify Bundles from the Shopify App Store, then open it from
+          your Shopify admin. This page does not ask for a shop domain.
+        </p>
+        <p>
+          <a
+            className={styles.button}
+            href="https://apps.shopify.com/appify-bundles"
+          >
+            View on the Shopify App Store
+          </a>
+        </p>
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Volume and bundle offers.</strong> Merchants configure
+            quantity breaks, Buy X Get Y, mix-and-match, and fixed product
+            bundles in the Shopify admin.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Storefront widget.</strong> Offers render through a theme
+            app embed. Buyers add items with Shopify cart and checkout — no
+            offsite checkout.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Shopify Billing.</strong> App charges use Shopify volume
+            billing. Optional gifts are added only after the buyer taps Add
+            free gift.
           </li>
         </ul>
+        <p className={styles.footer}>
+          <Link to="/privacy">Privacy policy</Link>
+        </p>
       </div>
     </div>
   );

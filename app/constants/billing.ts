@@ -1,4 +1,8 @@
 export const APPIFY_BUNDLES = "APPIFY_BUNDLES";
+/** Shopify App Pricing forces lowercase plan handles. */
+export const APPIFY_BUNDLES_HANDLE = "appify-bundles";
+/** Must match the Shopify App Pricing meter handle exactly. */
+export const ORDER_PROCESSED_EVENT_HANDLE = "order_processed";
 export const TIER_500 = "TIER_500";
 export const TIER_1500 = "TIER_1500";
 export const TIER_SCALE = "TIER_SCALE";
@@ -23,6 +27,7 @@ export const LEGACY_BILLING_PLAN_KEYS = [
 
 export const SHOPIFY_BILLING_PLAN_KEYS = [
   APPIFY_BUNDLES,
+  APPIFY_BUNDLES_HANDLE,
   ...BILLING_PLAN_KEYS,
   ...LEGACY_BILLING_PLAN_KEYS,
 ] as const;
@@ -106,7 +111,12 @@ const LEGACY_BASE_AMOUNTS: Record<string, number> = {
 };
 
 export function isVolumeSubscription(value: string | null | undefined): boolean {
-  return value?.trim() === APPIFY_BUNDLES;
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase().replace(/[_\s]+/g, "-");
+  return (
+    normalized === APPIFY_BUNDLES_HANDLE ||
+    normalized === APPIFY_BUNDLES.toLowerCase().replace(/_/g, "-")
+  );
 }
 
 export function canonicalizePlanKey(

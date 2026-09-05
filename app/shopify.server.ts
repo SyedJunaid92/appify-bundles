@@ -10,6 +10,7 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import {
   APPIFY_BUNDLES,
+  APPIFY_BUNDLES_HANDLE,
   BILLING_TIERS,
   MONTHLY_CHARGE_CAP,
   TIER_1000,
@@ -36,6 +37,18 @@ const shopify = shopifyApp({
   distribution: AppDistribution.AppStore,
   billing: {
     [APPIFY_BUNDLES]: {
+      trialDays: TRIAL_DAYS,
+      replacementBehavior: BillingReplacementBehavior.ApplyImmediately,
+      lineItems: [
+        {
+          amount: MONTHLY_CHARGE_CAP,
+          currencyCode: "USD",
+          interval: BillingInterval.Usage,
+          terms: `${USAGE_TERMS}. Cap $${MONTHLY_CHARGE_CAP}.`,
+        },
+      ],
+    },
+    [APPIFY_BUNDLES_HANDLE]: {
       trialDays: TRIAL_DAYS,
       replacementBehavior: BillingReplacementBehavior.ApplyImmediately,
       lineItems: [

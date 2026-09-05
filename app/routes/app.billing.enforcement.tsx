@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { APPIFY_BUNDLES } from "../constants/billing";
+import { APPIFY_BUNDLES, APPIFY_BUNDLES_HANDLE } from "../constants/billing";
 import { setActivePlan } from "../models/billing.server";
 import { isShopBillingTestMode } from "../services/billing-mode.server";
 import { pauseBundlesForTierLimit } from "../services/billing-enforcement.server";
@@ -19,7 +19,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "upgrade") {
     await setActivePlan(session.shop, APPIFY_BUNDLES);
     return billing.request({
-      plan: APPIFY_BUNDLES,
+      plan: APPIFY_BUNDLES_HANDLE,
       isTest,
     });
   }
