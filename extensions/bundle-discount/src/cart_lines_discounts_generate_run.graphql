@@ -1,0 +1,54 @@
+query CartLinesDiscountsGenerateRunInput($collectionIds: [ID!] = []) {
+  cart {
+    buyerIdentity {
+      purchasingCompany {
+        company {
+          id
+        }
+      }
+    }
+    lines {
+      id
+      quantity
+      cost {
+        amountPerQuantity {
+          amount
+        }
+        subtotalAmount {
+          amount
+        }
+      }
+      bundleId: attribute(key: "_appify_bundle_id") {
+        value
+      }
+      instance: attribute(key: "_appify_instance") {
+        value
+      }
+      role: attribute(key: "_appify_role") {
+        value
+      }
+      kind: attribute(key: "_appify_kind") {
+        value
+      }
+      gift: attribute(key: "_appify_gift") {
+        value
+      }
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          product {
+            id
+            inAnyCollection(ids: $collectionIds)
+          }
+        }
+      }
+    }
+  }
+  discount {
+    discountClasses
+    offers: metafield(namespace: "$app", key: "offers") {
+      jsonValue
+    }
+  }
+}

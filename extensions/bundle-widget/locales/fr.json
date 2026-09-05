@@ -1,0 +1,11 @@
+{
+  "name": "Appify Bundles",
+  "blocks": {
+    "bundle-widget": {
+      "name": "Widget Appify Bundles"
+    },
+    "bundle-embed": {
+      "name": "Appify Bundles"
+    }
+  }
+}

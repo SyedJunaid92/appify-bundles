@@ -1,0 +1,44 @@
+query CartDeliveryOptionsDiscountsGenerateRunInput {
+  cart {
+    buyerIdentity {
+      purchasingCompany {
+        company {
+          id
+        }
+      }
+    }
+    deliveryGroups {
+      id
+    }
+    lines {
+      id
+      quantity
+      cost {
+        amountPerQuantity {
+          amount
+        }
+        subtotalAmount {
+          amount
+        }
+      }
+      gift: attribute(key: "_appify_gift") {
+        value
+      }
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          product {
+            id
+          }
+        }
+      }
+    }
+  }
+  discount {
+    discountClasses
+    offers: metafield(namespace: "$app", key: "offers") {
+      jsonValue
+    }
+  }
+}

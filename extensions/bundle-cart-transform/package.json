@@ -1,0 +1,19 @@
+{
+  "name": "bundle-cart-transform",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "@shopify/shopify_function": "~2.0.0"
+  },
+  "codegen": {
+    "schema": "schema.graphql",
+    "documents": "src/cart_transform_run.graphql",
+    "generates": {
+      "./generated/api.ts": {
+        "plugins": ["typescript", "typescript-operations"]
+      }
+    }
+  }
+}

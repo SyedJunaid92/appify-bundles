@@ -1,0 +1,35 @@
+{% assign appify_collection_ids = product.collections | map: 'id' | join: ',' %}
+<div
+  class="appify-bundle-widget"
+  data-appify-bundle-widget
+  data-placement="product"
+  data-product-id="{{ product.id }}"
+  data-product-title="{{ product.title | escape }}"
+  data-product-image="{{ product.featured_image | image_url: width: 160 }}"
+  data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  data-variant-price-cents="{{ product.selected_or_first_available_variant.price }}"
+  data-variant-compare-cents="{{ product.selected_or_first_available_variant.compare_at_price }}"
+  data-currency="{{ cart.currency.iso_code }}"
+  data-collection-ids="{{ appify_collection_ids }}"
+  data-proxy-url="/apps/appify-bundles/bundles"
+  data-analytics-url="/apps/appify-bundles/analytics"
+  {{ block.shopify_attributes }}
+></div>
+
+{% schema %}
+{
+  "name": "Appify Bundle Widget",
+  "target": "section",
+  "javascript": "bundle-widget.js",
+  "stylesheet": "bundle-widget.css",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Displays volume discount tiers on the product page. Discounts apply dynamically at checkout — no separate bundle product is created."
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,7 @@
+api_version = "2026-04"
+
+[[extensions]]
+name = "Appify Bundle Widget"
+handle = "bundle-widget"
+uid = "8738ae3d-25c4-f928-2ab3-1488c50a48290045fd0b"
+type = "theme"

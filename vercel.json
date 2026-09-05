@@ -1,0 +1,20 @@
+{
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm install",
+  "framework": "react-router",
+  "regions": ["icn1"],
+  "crons": [
+    {
+      "path": "/api/cron/billing-sync",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/offer-sync",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/stats-rollup",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

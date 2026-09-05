@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+
+  @@index([shop])
+}
+
+model ShopSettings {
+  id        String   @id @default(cuid())
+  shop      String   @unique
+  widget    Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bundles Bundle[]
+}
+
+model Bundle {
+  id              String   @id @default(cuid())
+  shop            String
+  shopSettingsId  String
+  title           String
+  handle          String
+  type            String   @default("fixed")
+  status          String   @default("draft")
+  discountType    String   @default("percentage")
+  discountValue   Decimal  @default(0) @db.Decimal(10, 2)
+  parentProductId String?
+  parentVariantId String?
+  layout          String   @default("cards")
+  widgetOverrides Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shopSettings ShopSettings @relation(fields: [shopSettingsId], references: [id], onDelete: Cascade)
+  items        BundleItem[]
+  tiers        BundleTier[]
+
+  @@unique([shop, handle])
+  @@index([shop, status])
+  @@index([shopSettingsId])
+}
+
+model BundleItem {
+  id                String  @id @default(cuid())
+  bundleId          String
+  productId         String
+  variantId         String
+  productTitle      String
+  variantTitle      String?
+  quantity          Int     @default(1)
+  sortOrder         Int     @default(0)
+  optional          Boolean @default(false)
+  role              String  @default("pool")
+  selectedByDefault Boolean @default(false)
+
+  bundle Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  @@index([bundleId])
+  @@index([variantId])
+}
+
+model BundleTier {
+  id            String  @id @default(cuid())
+  bundleId      String
+  minQuantity   Int
+  discountType  String  @default("percentage")
+  discountValue Decimal @default(0) @db.Decimal(10, 2)
+  label         String?
+  sortOrder     Int     @default(0)
+
+  bundle Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  @@index([bundleId, minQuantity])
+}
+
+model ShopBilling {
+  id                    String    @id @default(cuid())
+  shop                  String    @unique
+  activePlan            String?
+  shopifySubscriptionId String?
+  subscriptionStatus    String?
+  monthlyOrderCount     Int       @default(0)
+  orderCountPeriodStart DateTime  @default(now())
+  tierLimitReached      Boolean   @default(false)
+  bundlesPausedForBilling Boolean @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  history BillingHistory[]
+}
+
+model BillingHistory {
+  id              String   @id @default(cuid())
+  shopBillingId   String
+  shop            String
+  periodStart     DateTime
+  periodEnd       DateTime
+  orderCount      Int
+  planKey         String
+  baseAmount      Decimal  @db.Decimal(10, 2)
+  usageAmount     Decimal  @default(0) @db.Decimal(10, 2)
+  totalAmount     Decimal  @db.Decimal(10, 2)
+  shopifyChargeId String?  @unique
+  status          String   @default("pending")
+  createdAt       DateTime @default(now())
+
+  shopBilling ShopBilling @relation(fields: [shopBillingId], references: [id], onDelete: Cascade)
+
+  @@unique([shop, periodStart])
+  @@index([shop, periodStart])
+  @@index([shopBillingId])
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  shop      String
+  orderId   String
+  createdAt DateTime @default(now())
+
+  @@unique([shop, orderId])
+  @@index([shop, createdAt])
+}
+
+model ShopProfile {
+  shop      String   @id
+  name      String?
+  email     String?
+  currency  String   @default("USD")
+  timezone  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ShopDailyStat {
+  id          String   @id @default(cuid())
+  shop        String
+  statDate    DateTime @db.Date
+  shopName    String?
+  email       String?
+  currency    String   @default("USD")
+  views       Int      @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  addToCart   Int      @default(0)
+  purchases   Int      @default(0)
+  revenue     Decimal  @default(0) @db.Decimal(14, 2)
+  orders      Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shop, statDate])
+  @@index([shop, statDate(sort: Desc)])
+  @@index([statDate])
+}
+
+model BundleDailyStat {
+  id          String   @id @default(cuid())
+  shop        String
+  bundleId    String
+  statDate    DateTime @db.Date
+  views       Int      @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  addToCart   Int      @default(0)
+  purchases   Int      @default(0)
+  revenue     Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shop, bundleId, statDate])
+  @@index([shop, statDate])
+  @@index([shop, bundleId, statDate])
+}
+
+model BundleExperiment {
+  id                 String    @id @default(cuid())
+  shop               String
+  name               String
+  status             String    @default("draft")
+  controlBundleId    String
+  challengerBundleId String
+  trafficPercent     Int       @default(50)
+  startedAt          DateTime?
+  endedAt            DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([shop, status])
+  @@index([controlBundleId])
+}
+
+model BundleAnalyticsEvent {
+  id        String   @id @default(cuid())
+  shop      String
+  bundleId  String?
+  eventType String
+  revenue   Decimal? @db.Decimal(10, 2)
+  currency  String   @default("USD")
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([shop, createdAt])
+  @@index([shop, bundleId, eventType])
+  @@index([shop, eventType, createdAt])
+}

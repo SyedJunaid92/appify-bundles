@@ -1,0 +1,42 @@
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "72ca0353b39ec68fb4dbd3c1f90982cd"
+application_url = "https://appify-bundles.vercel.app"
+embedded = true
+name = "Appify Bundles"
+handle = "appify-bundles"
+
+[access_scopes]
+scopes = "read_products,write_products,write_cart_transforms,read_orders,read_discounts,write_discounts,read_themes"
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ "https://appify-bundles.vercel.app/auth/callback" ]
+
+[app_proxy]
+url = "https://appify-bundles.vercel.app/proxy"
+subpath = "appify-bundles"
+prefix = "apps"
+
+[webhooks]
+api_version = "2026-04"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app_subscriptions/update"
+  topics = [ "app_subscriptions/update" ]
+
+  # Requires Protected Customer Data approval — re-enable after Partner Dashboard approval
+  # [[webhooks.subscriptions]]
+  # uri = "/webhooks/orders/create"
+  # topics = [ "orders/create" ]
+
+[build]
+automatically_update_urls_on_dev = true
