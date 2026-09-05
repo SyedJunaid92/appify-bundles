@@ -5,6 +5,7 @@ import {
   confirmationUrlFromBillingResponse,
   isBillingGateExempt,
   isBillingReturn,
+  isShopifyAdminCheckoutUrl,
   shouldAutoApproveBilling,
   volumeBillingReturnUrl,
 } from "../app/utils/embedded-app";
@@ -43,17 +44,43 @@ describe("billing gate helpers", () => {
     ).toBe(false);
   });
 
-  it("returns declined merchants to billing, not the app home", () => {
+  it("returns merchants to the embedded admin billing page", () => {
     const returnUrl = volumeBillingReturnUrl(
       new Request(
         "https://app.example/app?shop=demo.myshopify.com&host=abc&embedded=1&id_token=huge.jwt.token",
       ),
     );
-    expect(returnUrl).toContain("/app/billing");
-    expect(returnUrl).not.toContain("approve=1");
+    expect(returnUrl).toBe(
+      "https://admin.shopify.com/store/demo/apps/appify-bundles/app/billing",
+    );
     expect(returnUrl).not.toContain("id_token");
-    expect(returnUrl).toContain("shop=demo.myshopify.com");
-    expect(returnUrl).toContain("host=abc");
+    expect(returnUrl).not.toContain("vercel.app");
+  });
+
+  it("decodes the Shopify host when shop is missing", () => {
+    const host = btoa("admin.shopify.com/store/appify-9217");
+    const returnUrl = volumeBillingReturnUrl(
+      new Request(`https://app.example/app/billing?host=${host}&embedded=1`),
+    );
+    expect(returnUrl).toContain("/store/appify-9217/apps/appify-bundles/app/billing");
+  });
+
+  it("only top-navigates Shopify charge confirmation URLs", () => {
+    expect(
+      isShopifyAdminCheckoutUrl(
+        "https://admin.shopify.com/store/demo/charges/1/confirm",
+      ),
+    ).toBe(true);
+    expect(
+      isShopifyAdminCheckoutUrl(
+        "https://admin.shopify.com/store/demo/apps/appify-bundles/auth/session-token",
+      ),
+    ).toBe(false);
+    expect(
+      isShopifyAdminCheckoutUrl(
+        "https://appify-bundles.vercel.app/app/billing?charge_id=1",
+      ),
+    ).toBe(false);
   });
 
   it("reads Shopify's billing confirmation URL from the 401 response", () => {

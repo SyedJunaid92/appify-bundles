@@ -9,8 +9,6 @@ export const EMBED_SEARCH_PARAMS = [
   "timestamp",
 ] as const;
 
-const BILLING_RETURN_PARAMS = ["shop", "host", "embedded"] as const;
-
 export const BILLING_REAUTH_HEADER =
   "X-Shopify-API-Request-Failure-Reauthorize-Url";
 
@@ -55,17 +53,58 @@ export function isBillingGateExempt(pathname: string): boolean {
   );
 }
 
-/** After approve or decline, land on billing — never /app — so a decline cannot re-trigger Shopify. */
-export function volumeBillingReturnUrl(request: Request): string {
+export function shopHandleFromRequest(
+  request: Request,
+  shop?: string,
+): string | null {
+  const url = new URL(request.url);
+  const shopDomain = shop || url.searchParams.get("shop");
+  if (shopDomain?.includes(".myshopify.com")) {
+    return shopDomain.replace(/\.myshopify\.com$/i, "");
+  }
+
+  const host = url.searchParams.get("host");
+  if (!host) return null;
+
+  try {
+    const padded = host.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+    const match = decoded.match(/store\/([^/]+)/);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Return to the embedded admin app, not vercel.app. A hosted return URL
+ * bounces through /auth/session-token and leaves a blank Shopify iframe.
+ */
+export function volumeBillingReturnUrl(request: Request, shop?: string): string {
+  const handle = shopHandleFromRequest(request, shop);
+  const appHandle = process.env.SHOPIFY_APP_HANDLE || "appify-bundles";
+  if (handle) {
+    return `https://admin.shopify.com/store/${handle}/apps/${appHandle}/app/billing`;
+  }
+
   const url = new URL(request.url);
   const appUrl = (process.env.SHOPIFY_APP_URL || url.origin).replace(/\/$/, "");
-  const target = new URLSearchParams();
-  for (const key of BILLING_RETURN_PARAMS) {
-    const value = url.searchParams.get(key);
-    if (value) target.set(key, value);
+  return `${appUrl}/app/billing`;
+}
+
+export function isShopifyAdminCheckoutUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.hostname !== "admin.shopify.com") return false;
+    if (url.pathname.includes("/auth/")) return false;
+    return (
+      url.pathname.includes("/charges") ||
+      url.pathname.includes("/app_subscriptions") ||
+      url.pathname.includes("/confirm")
+    );
+  } catch {
+    return false;
   }
-  const query = target.toString();
-  return query ? `${appUrl}/app/billing?${query}` : `${appUrl}/app/billing`;
 }
 
 export function confirmationUrlFromBillingResponse(

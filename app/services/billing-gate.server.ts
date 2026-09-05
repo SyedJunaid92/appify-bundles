@@ -54,7 +54,7 @@ export async function enforceVolumeBillingGate(
     return { hasPaidPlan: false, isTest };
   }
 
-  const started = await startVolumeBilling(request, billing, isTest);
+  const started = await startVolumeBilling(request, billing, isTest, shop);
   if (started.confirmationUrl || started.error) {
     throw redirect(appendEmbedSearchParams("/app/billing", url.search));
   }
@@ -66,12 +66,13 @@ export async function startVolumeBilling(
   request: Request,
   billing: AdminBilling,
   isTest: boolean,
+  shop?: string,
 ): Promise<{ confirmationUrl?: string; error?: string }> {
   try {
     throw await billing.request({
       plan: APPIFY_BUNDLES,
       isTest,
-      returnUrl: volumeBillingReturnUrl(request),
+      returnUrl: volumeBillingReturnUrl(request, shop),
     });
   } catch (error) {
     const confirmationUrl = confirmationUrlFromBillingResponse(error);
@@ -98,6 +99,6 @@ export async function requestVolumeBillingIfNeeded(
     return { hasPaidPlan, isTest, confirmationUrl: undefined, error: undefined };
   }
 
-  const started = await startVolumeBilling(request, billing, isTest);
+  const started = await startVolumeBilling(request, billing, isTest, shop);
   return { hasPaidPlan, isTest, ...started };
 }

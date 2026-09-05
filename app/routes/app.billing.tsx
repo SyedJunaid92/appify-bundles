@@ -28,6 +28,7 @@ import {
   requestVolumeBillingIfNeeded,
   startVolumeBilling,
 } from "../services/billing-gate.server";
+import { isShopifyAdminCheckoutUrl } from "../utils/embedded-app";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, admin, session } = await authenticate.admin(request);
@@ -94,7 +95,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { success: "Billing cancelled." };
   }
 
-  const started = await startVolumeBilling(request, billing, isTest);
+  const started = await startVolumeBilling(
+    request,
+    billing,
+    isTest,
+    session.shop,
+  );
   if (started.confirmationUrl) {
     return { confirmationUrl: started.confirmationUrl };
   }
@@ -133,17 +139,21 @@ export default function BillingPage() {
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
   const currentTier = tiers[currentPlan];
-  const shopifyUrl =
+  const rawShopifyUrl =
     (actionData &&
       "confirmationUrl" in actionData &&
       actionData.confirmationUrl) ||
     confirmationUrl;
+  const shopifyUrl =
+    rawShopifyUrl && isShopifyAdminCheckoutUrl(rawShopifyUrl)
+      ? rawShopifyUrl
+      : undefined;
   const requestFailed =
     requestError ||
     (actionData && "error" in actionData ? actionData.error : null);
 
   useEffect(() => {
-    if (!shopifyUrl) return;
+    if (!shopifyUrl || !isShopifyAdminCheckoutUrl(shopifyUrl)) return;
     const target = window.top ?? window;
     target.location.href = shopifyUrl;
   }, [shopifyUrl]);
