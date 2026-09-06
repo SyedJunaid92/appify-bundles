@@ -1,7 +1,6 @@
 (function () {
   "use strict";
 
-  var FETCH_TIMEOUT_MS = 10000;
   var HIDES_ATC = {
     quantity_break: true,
     bogo: true,
@@ -15,6 +14,32 @@
     ".shopify-payment-button",
     '[name="checkout"]',
   ];
+
+  function cx(name) {
+    return "appify-bundle-widget__" + name;
+  }
+
+  function heading(container, text) {
+    var title = document.createElement("div");
+    title.className = cx("title");
+    title.textContent = text;
+    container.appendChild(title);
+  }
+
+  function actionButton(label) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = cx("button");
+    button.textContent = label;
+    return button;
+  }
+
+  function trackAdd(analyticsUrl, bundle) {
+    trackEvent(analyticsUrl, bundle.id, "add_to_cart", {
+      experimentId: bundle.experimentId,
+      variantId: bundle.experimentVariant,
+    });
+  }
 
   function formatMoney(cents, currency) {
     if (window.Shopify && typeof window.Shopify.formatMoney === "function") {
@@ -169,7 +194,7 @@
       buyQty: tier.buyQty || tier.minQuantity || 1,
       getQty: tier.getQty || 0,
       giftCount: (tier.gifts || []).length,
-      sellingPlan: tier.applySellingPlan ? "Subscribe & save" : "",
+      sellingPlan: tier.applySellingPlan ? "Subscribe" : "",
       sellingPlanDiscount: tier.applySellingPlan ? "10%" : "",
     };
   }
@@ -203,7 +228,7 @@
           strip.textContent = label;
           el.appendChild(strip);
         });
-      wrap.className += " appify-bundle-widget__option-wrap--border";
+      wrap.className += " " + cx("option-wrap--border");
       wrap.style.setProperty("--ab-badge-th", (badge.thickness || 16) + "px");
       wrap.style.setProperty("--ab-badge-gap", (badge.distance || 0) + "px");
     } else {
@@ -245,34 +270,27 @@
   }
 
   function setThemePurchaseControlsHidden(hidden, el) {
+    var hide = "data-appify-hidden-theme";
+    var prev = "data-appify-prev-display";
     var form = findProductForm(el);
-    var roots = [];
-    if (form) roots.push(form);
-    if (form && form.parentElement) roots.push(form.parentElement);
-    roots.push(document);
+    var roots = [document];
+    if (form) roots.unshift(form, form.parentElement || form);
 
     var seen = new Set();
     roots.forEach(function (root) {
       THEME_CONTROL_SELECTORS.forEach(function (sel) {
         root.querySelectorAll(sel).forEach(function (node) {
-          if (seen.has(node)) return;
-          if (node.closest && node.closest("[data-appify-bundle-widget]")) return;
+          if (seen.has(node) || (node.closest && node.closest("[data-appify-bundle-widget]"))) return;
           seen.add(node);
           if (hidden) {
-            if (!node.hasAttribute("data-appify-prev-display")) {
-              node.setAttribute(
-                "data-appify-prev-display",
-                node.style.display || "",
-              );
-            }
-            node.setAttribute("data-appify-hidden-theme", "true");
+            if (!node.hasAttribute(prev)) node.setAttribute(prev, node.style.display || "");
+            node.setAttribute(hide, "true");
             node.style.setProperty("display", "none", "important");
             node.setAttribute("aria-hidden", "true");
-          } else if (node.getAttribute("data-appify-hidden-theme") === "true") {
-            var prev = node.getAttribute("data-appify-prev-display") || "";
-            node.style.display = prev;
-            node.removeAttribute("data-appify-hidden-theme");
-            node.removeAttribute("data-appify-prev-display");
+          } else if (node.getAttribute(hide) === "true") {
+            node.style.display = node.getAttribute(prev) || "";
+            node.removeAttribute(hide);
+            node.removeAttribute(prev);
             node.removeAttribute("aria-hidden");
           }
         });
@@ -305,6 +323,213 @@
     return Number(String(gid).replace("gid://shopify/ProductVariant/", ""));
   }
 
+  function parseJsonAttr(value) {
+    if (!value) return null;
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function optionAxes(options) {
+    return (options || []).filter(function (option) {
+      var values = option.values || [];
+      if (!option.name || !values.length) return false;
+      return !(
+        option.name === "Title" &&
+        values.length === 1 &&
+        values[0] === "Default Title"
+      );
+    });
+  }
+
+  function guessHandle(product) {
+    if (product && product.handle) return product.handle;
+    if (!product || !product.title) return "";
+    return String(product.title)
+      .toLowerCase()
+      .replace(/['’]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function availableValues(product, axisIndex, selected) {
+    var variants = product.variants || [];
+    var seen = [];
+    variants.forEach(function (variant) {
+      if (variant.available === false) return;
+      var opts = variant.options || [];
+      var matches = opts.every(function (value, index) {
+        if (index === axisIndex) return true;
+        return !selected[index] || selected[index] === value;
+      });
+      if (!matches) return;
+      var value = opts[axisIndex];
+      if (value && seen.indexOf(value) < 0) seen.push(value);
+    });
+    return seen;
+  }
+
+  function renderOptionSelects(host, product, state, requirePick, grouped, onChange) {
+    var axes = optionAxes(product.options);
+    if (grouped && axes.length) {
+      var groupLabel = document.createElement("span");
+      groupLabel.className = cx("variant-label");
+      groupLabel.textContent = axes
+        .map(function (axis) {
+          return axis.name;
+        })
+        .join(", ");
+      host.appendChild(groupLabel);
+    }
+    axes.forEach(function (axis, index) {
+      var values = (product.variants || []).length
+        ? availableValues(product, index, state)
+        : axis.values || [];
+      if (!values.length) return;
+      if (state[index] && values.indexOf(state[index]) < 0) state[index] = "";
+      var field = document.createElement("label");
+      field.className = cx("variant-field");
+      if (!grouped) {
+        var name = document.createElement("span");
+        name.textContent = axis.name;
+        field.appendChild(name);
+      }
+      var select = document.createElement("select");
+      select.className = cx("variant-select");
+      if (requirePick && !state[index]) {
+        var blank = document.createElement("option");
+        blank.value = "";
+        blank.textContent = "Select " + axis.name;
+        select.appendChild(blank);
+      }
+      values.forEach(function (value) {
+        var opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = value;
+        if (state[index] === value) opt.selected = true;
+        select.appendChild(opt);
+      });
+      if (!requirePick && !state[index] && values[0]) state[index] = values[0];
+      select.addEventListener("click", function (event) {
+        event.stopPropagation();
+      });
+      select.addEventListener("change", function (event) {
+        event.stopPropagation();
+        state[index] = select.value;
+        if (onChange) onChange();
+      });
+      field.appendChild(select);
+      host.appendChild(field);
+    });
+  }
+
+  function pageProductModel(container) {
+    return {
+      id: container.dataset.productId,
+      handle: container.dataset.productHandle,
+      title: container.dataset.productTitle,
+      variantId: container.dataset.variantId,
+      options: parseJsonAttr(container.dataset.productOptions) || [],
+      variants: parseJsonAttr(container.dataset.productVariants) || [],
+    };
+  }
+
+  function normalizeProductJson(raw) {
+    var options = [];
+    if (raw.options && raw.options[0] && raw.options[0].name) {
+      options = raw.options.map(function (option) {
+        return { name: option.name, values: option.values || [] };
+      });
+    } else {
+      options = (raw.options || []).map(function (name, index) {
+        var values = [];
+        (raw.variants || []).forEach(function (variant) {
+          var value = variant["option" + (index + 1)];
+          if (value && values.indexOf(value) < 0) values.push(value);
+        });
+        return { name: name, values: values };
+      });
+    }
+    return {
+      handle: raw.handle,
+      options: options,
+      variants: (raw.variants || []).map(function (variant) {
+        return {
+          id: variant.id,
+          available: variant.available !== false,
+          options:
+            variant.options ||
+            [variant.option1, variant.option2, variant.option3].filter(Boolean),
+        };
+      }),
+    };
+  }
+
+  var productJsonCache = {};
+
+  function loadProductJson(handle) {
+    if (!handle) return Promise.resolve(null);
+    if (productJsonCache[handle]) return productJsonCache[handle];
+    productJsonCache[handle] = fetch("/products/" + encodeURIComponent(handle) + ".js", {
+      credentials: "same-origin",
+    })
+      .then(function (res) {
+        return res.ok ? res.json() : null;
+      })
+      .catch(function () {
+        return null;
+      });
+    return productJsonCache[handle];
+  }
+
+  function ensureProductModel(product) {
+    if (!product) return Promise.resolve(null);
+    var handle = guessHandle(product);
+    if (!handle) return Promise.resolve(product);
+    return loadProductJson(handle).then(function (raw) {
+      return raw ? Object.assign({}, product, normalizeProductJson(raw)) : product;
+    });
+  }
+
+  function findVariantByOptions(variants, selected) {
+    var values = selected || [];
+    if (!values.length || values.some(function (value) { return !value; })) return null;
+    var match = (variants || []).find(function (variant) {
+      if (variant.available === false) return false;
+      var opts = variant.options || [];
+      return (
+        opts.length === values.length &&
+        values.every(function (value, index) {
+          return opts[index] === value;
+        })
+      );
+    });
+    return match ? match.id : null;
+  }
+
+  function pickedVariantId(product, selected, fallbackId) {
+    return optionAxes(product && product.options).length
+      ? findVariantByOptions(product.variants, selected) || fallbackId
+      : fallbackId;
+  }
+
+  function selectedFromVariant(product) {
+    var current = (product.variants || []).find(function (variant) {
+      return (
+        variant.available !== false &&
+        String(variant.id) === String(product.variantId || "")
+      );
+    });
+    if (!current) {
+      current = (product.variants || []).find(function (variant) {
+        return variant.available !== false;
+      });
+    }
+    return current ? (current.options || []).slice() : [];
+  }
+
   function newInstanceId() {
     return "ab-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
   }
@@ -313,42 +538,34 @@
     return (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) || "/";
   }
 
+  function sectionIds(node) {
+    if (node && typeof node.getSectionsToRender === "function") {
+      try {
+        return node.getSectionsToRender().map(function (section) {
+          return section.id;
+        });
+      } catch (e) {}
+    }
+  }
+
   function getDawnCartSections() {
     var drawer = document.querySelector("cart-drawer");
-    if (drawer && typeof drawer.getSectionsToRender === "function") {
-      try {
-        return drawer.getSectionsToRender().map(function (section) {
-          return section.id;
-        });
-      } catch (e) {}
-    }
+    var ids = sectionIds(drawer);
+    if (ids) return ids;
     var notification = document.querySelector("cart-notification");
-    if (notification && typeof notification.getSectionsToRender === "function") {
-      try {
-        return notification.getSectionsToRender().map(function (section) {
-          return section.id;
-        });
-      } catch (e) {}
-    }
+    ids = sectionIds(notification);
+    if (ids) return ids;
     if (drawer) return ["cart-drawer", "cart-icon-bubble"];
     if (notification) {
-      return [
-        "cart-notification",
-        "cart-notification-product",
-        "cart-notification-button",
-        "cart-icon-bubble",
-      ];
+      return ["cart-notification", "cart-notification-product", "cart-notification-button", "cart-icon-bubble"];
     }
     return ["cart-icon-bubble"];
   }
 
   function isThemeDrawerSectionHtml(html) {
-    if (!html || typeof html !== "string") return false;
-    if (html.indexOf("drawer__inner") !== -1) return true;
-    if (html.indexOf("cart-drawer-items") !== -1) return true;
-    if (html.indexOf("Continue shopping") !== -1) return false;
-    if (html.indexOf("title--primary") !== -1) return false;
-    return html.indexOf("cart-drawer") !== -1 || html.indexOf("CartDrawer") !== -1;
+    return !!html && (html.indexOf("drawer__inner") !== -1 || html.indexOf("cart-drawer-items") !== -1 ||
+      (html.indexOf("Continue shopping") === -1 && html.indexOf("title--primary") === -1 &&
+        (html.indexOf("cart-drawer") !== -1 || html.indexOf("CartDrawer") !== -1)));
   }
 
   function openThemeCartIcon() {
@@ -443,21 +660,24 @@
       });
   }
 
+  function setVars(root, src, pairs) {
+    for (var i = 0; i < pairs.length; i += 2) {
+      if (src[pairs[i]]) root.style.setProperty(pairs[i + 1], src[pairs[i]]);
+    }
+  }
+
   function applyStyles(root, widget, config) {
     if (widget) {
-      var map = {
-        primaryColor: "--ab-primary",
-        backgroundColor: "--ab-bg",
-        textColor: "--ab-text",
-        borderColor: "--ab-border",
-        selectedBorderColor: "--ab-selected",
-        badgeColor: "--ab-badge",
-        badgeTextColor: "--ab-badge-text",
-        secondaryColor: "--ab-secondary",
-      };
-      Object.keys(map).forEach(function (key) {
-        if (widget[key]) root.style.setProperty(map[key], widget[key]);
-      });
+      setVars(root, widget, [
+        "primaryColor", "--ab-primary",
+        "backgroundColor", "--ab-bg",
+        "textColor", "--ab-text",
+        "borderColor", "--ab-border",
+        "selectedBorderColor", "--ab-selected",
+        "badgeColor", "--ab-badge",
+        "badgeTextColor", "--ab-badge-text",
+        "secondaryColor", "--ab-secondary",
+      ]);
     }
     if (config && config.style) {
       var s = config.style;
@@ -465,24 +685,21 @@
         .replace(/appify-bundle-widget--(vertical|horizontal|compact|minimal)/g, "")
         .trim();
       root.classList.add("appify-bundle-widget--" + (s.layout || "vertical"));
-      var css = {
-        cardsBg: "--ab-bg",
-        selectedBg: "--ab-secondary",
-        inactiveText: "--ab-inactive-text",
-        buttonBg: "--ab-primary",
-        buttonText: "--ab-button-text",
-        borderColor: "--ab-border",
-        titleColor: "--ab-text",
-        subtitleColor: "--ab-muted",
-        priceColor: "--ab-price",
-        fullPriceColor: "--ab-compare",
-        blockTitleColor: "--ab-block-title",
-        badgeBg: "--ab-badge",
-        badgeText: "--ab-badge-text",
-      };
-      Object.keys(css).forEach(function (key) {
-        if (s[key]) root.style.setProperty(css[key], s[key]);
-      });
+      setVars(root, s, [
+        "cardsBg", "--ab-bg",
+        "selectedBg", "--ab-secondary",
+        "inactiveText", "--ab-inactive-text",
+        "buttonBg", "--ab-primary",
+        "buttonText", "--ab-button-text",
+        "borderColor", "--ab-border",
+        "titleColor", "--ab-text",
+        "subtitleColor", "--ab-muted",
+        "priceColor", "--ab-price",
+        "fullPriceColor", "--ab-compare",
+        "blockTitleColor", "--ab-block-title",
+        "badgeBg", "--ab-badge",
+        "badgeText", "--ab-badge-text",
+      ]);
       if (s.cornerRadius != null) root.style.setProperty("--ab-radius", s.cornerRadius + "px");
       if (s.spacing != null) root.style.setProperty("--ab-spacing", s.spacing + "px");
       if (s.blockTitleSize) root.style.setProperty("--ab-block-title-size", s.blockTitleSize + "px");
@@ -491,7 +708,7 @@
     }
   }
 
-  function applyCustomCss(root, config, bundleId) {
+  function applyCustomCss(root, config) {
     if (!config || !config.style) return;
     var s = config.style;
     if (!s.customCssEnabled || !s.customCss) return;
@@ -499,62 +716,27 @@
     if (existing) existing.remove();
     var styleEl = document.createElement("style");
     styleEl.setAttribute("data-appify-custom-css", "true");
-    var scoped = s.customCss;
-    if (bundleId) {
-      scoped =
-        '[data-appify-bundle-id="' + bundleId + '"] { } /* scope */\n' + s.customCss;
-    }
-    styleEl.textContent = scoped;
+    styleEl.textContent = s.customCss;
     root.appendChild(styleEl);
   }
 
   function buildTiers(bundle) {
-    var config = bundle.config || {};
-    if (config.bars && config.bars.length) {
-      return config.bars.map(function (bar) {
-        return {
-          id: bar.id,
-          minQuantity: bar.quantity,
-          discountType:
-            bar.priceType === "fixed" || bar.priceType === "flat"
-              ? bar.priceType === "flat"
-                ? "flat"
-                : "fixed"
-              : "percentage",
-          priceType: bar.priceType,
-          discountValue: bar.priceType === "full" ? 0 : bar.discountValue,
-          label: bar.title,
-          subtitle: bar.subtitle,
-          badgeText: bar.badgeText || "",
-          badgeStyle: bar.badgeStyle || "simple",
-          isPopular: bar.isPopular,
-          selectedByDefault: bar.selectedByDefault,
-          soldOut: bar.soldOut,
-          kind: bar.kind || "product",
-          products: bar.products || [],
-          buyQty: bar.buyQty,
-          getQty: bar.getQty,
-          getPriceType: bar.getPriceType,
-          getDiscountValue: bar.getDiscountValue,
-          labelText: bar.label,
-          upsell: bar.upsell,
-          gifts: bar.gifts,
-          highlights: bar.highlights,
-          personalisation: bar.personalisation,
-          applySellingPlan: bar.applySellingPlan,
-        };
+    var bars = (bundle.config || {}).bars;
+    if (bars && bars.length) {
+      bars.forEach(function (bar) {
+        bar.minQuantity = bar.quantity;
+        bar.kind = bar.kind || "product";
+        if (bar.priceType === "full") bar.discountValue = 0;
+        bar.discountType =
+          bar.priceType === "flat" ? "flat" : bar.priceType === "fixed" ? "fixed" : "percentage";
+        bar.labelText = bar.label;
+        bar.label = bar.title;
       });
+      return bars;
     }
-    if (bundle.tiers && bundle.tiers.length) return bundle.tiers;
-    return [
-      {
-        minQuantity: 1,
-        discountValue: 0,
-        discountType: "percentage",
-        label: "Single",
-        subtitle: "Standard price",
-      },
-    ];
+    return bundle.tiers && bundle.tiers.length
+      ? bundle.tiers
+      : [{ minQuantity: 1, discountValue: 0, discountType: "percentage", label: "Single", subtitle: "Standard price" }];
   }
 
   function offerItems(bundle) {
@@ -579,7 +761,7 @@
     var timer = features && features.countdownTimer;
     if (!timer || !timer.enabled) return;
     var el = document.createElement("div");
-    el.className = "appify-bundle-widget__countdown";
+    el.className = cx("countdown");
     el.style.background = timer.backgroundColor || "#f6f6f7";
     el.style.color = timer.textColor || "#202223";
     el.style.textAlign = timer.alignment || "center";
@@ -608,12 +790,12 @@
 
   function renderProgress(container, text, ratio) {
     var wrap = document.createElement("div");
-    wrap.className = "appify-bundle-widget__progress";
+    wrap.className = cx("progress");
     wrap.innerHTML =
-      '<div class="appify-bundle-widget__progress-label"></div>' +
-      '<div class="appify-bundle-widget__progress-track"><div class="appify-bundle-widget__progress-fill"></div></div>';
-    wrap.querySelector(".appify-bundle-widget__progress-label").textContent = text;
-    wrap.querySelector(".appify-bundle-widget__progress-fill").style.width =
+      '<div class="'+cx("progress-label")+'"></div>' +
+      '<div class="'+cx("progress-track")+'"><div class="'+cx("progress-fill")+'"></div></div>';
+    wrap.querySelector("." + cx("progress-label")).textContent = text;
+    wrap.querySelector("." + cx("progress-fill")).style.width =
       Math.max(0, Math.min(100, ratio * 100)) + "%";
     container.appendChild(wrap);
   }
@@ -621,7 +803,7 @@
   function renderBarExtras(option, tier) {
     if (tier.highlights && tier.highlights.items && tier.highlights.items.length) {
       var list = document.createElement("ul");
-      list.className = "appify-bundle-widget__highlights";
+      list.className = cx("highlights");
       tier.highlights.items.forEach(function (item) {
         var li = document.createElement("li");
         li.textContent = item.text;
@@ -631,7 +813,7 @@
     }
     if (tier.personalisation) {
       var field = document.createElement("input");
-      field.className = "appify-bundle-widget__note";
+      field.className = cx("note");
       field.placeholder = tier.personalisation.placeholder || "Add a note";
       field.maxLength = tier.personalisation.maxLength || 80;
       field.setAttribute("data-appify-note", "true");
@@ -648,6 +830,7 @@
     });
     var cards = [
       {
+        slot: "page",
         title: productTitle || "Product",
         imageUrl: productImage || "",
         compare: compareCents,
@@ -662,6 +845,7 @@
       var sale = itemSaleCents(item, saleCents);
       var compare = itemCompareCents(item, saleCents, compareCents, useCompareAtPrice);
       cards.push({
+        slot: item.id,
         title: item.title || "Product",
         imageUrl: item.imageUrl || "",
         compare: compare,
@@ -676,22 +860,29 @@
       var recSale = Math.round(saleCents * 0.25);
       var recCompare = Math.round(compareCents * 0.25);
       cards.push({
-        title: "Recommended product",
+        slot: "",
+        title: "Recommended",
         imageUrl: "",
         compare: recCompare,
         sale: applyPriceCents(recSale, tier.priceType, tier.discountValue),
       });
     }
-    var html = '<span class="appify-bundle-widget__complete">';
+    var layout = tier.completeLayout === "stack" ? " " + cx("complete--stack") : "";
+    var html = '<span class="'+cx("complete")+layout+'">';
     cards.forEach(function (card, index) {
       html +=
-        '<span class="appify-bundle-widget__complete-item">' +
-        (index > 0 ? '<span class="appify-bundle-widget__complete-plus">+</span>' : "") +
+        '<span class="'+cx("complete-item")+'">' +
+        (index > 0 ? '<span class="'+cx("complete-plus")+'">+</span>' : "") +
         (card.imageUrl
           ? '<img src="' + card.imageUrl + '" alt="">'
-          : '<span class="appify-bundle-widget__complete-ph"></span>') +
-        '<span class="appify-bundle-widget__complete-title"></span>' +
-        '<span class="appify-bundle-widget__complete-price"><strong>' +
+          : '<span class="'+cx("complete-ph")+'"></span>') +
+        '<span class="'+cx("complete-copy")+'">' +
+        '<span class="'+cx("complete-title")+'"></span>' +
+        (card.slot
+          ? '<span class="'+cx("complete-pickers")+'" data-picker-slot="'+card.slot+'"></span>'
+          : "") +
+        "</span>" +
+        '<span class="'+cx("complete-price")+'"><strong>' +
         formatMoney(card.sale, currency) +
         "</strong>" +
         (card.sale < card.compare
@@ -702,7 +893,7 @@
     html += "</span>";
     var wrap = document.createElement("span");
     wrap.innerHTML = html;
-    wrap.querySelectorAll(".appify-bundle-widget__complete-title").forEach(function (node, i) {
+    wrap.querySelectorAll("." + cx("complete-title")).forEach(function (node, i) {
       node.textContent = cards[i].title;
     });
     return wrap.innerHTML;
@@ -710,7 +901,7 @@
 
   function renderTierOptions(container, bundle, tiers, saleCents, compareCents, useCompareAtPrice, currency, onSelect, productTitle) {
     var optionsEl = document.createElement("div");
-    optionsEl.className = "appify-bundle-widget__options";
+    optionsEl.className = cx("options");
     optionsEl.setAttribute("role", "radiogroup");
     var selectedIndex = tiers.findIndex(function (t) {
       return t.selectedByDefault;
@@ -721,7 +912,7 @@
       var pricing = calculateTierPricing(tier, saleCents, compareCents, useCompareAtPrice);
       var extras = textExtras(tier);
       var wrap = document.createElement("div");
-      wrap.className = "appify-bundle-widget__option-wrap";
+      wrap.className = cx("option-wrap");
       var config = bundle.config || {};
       if (config.badgesEnabled !== false) {
         (config.badges || []).forEach(function (item) {
@@ -733,12 +924,14 @@
           );
         });
       }
-      var option = document.createElement("button");
-      option.type = "button";
+      var option = document.createElement("div");
+      option.setAttribute("role", "radio");
+      option.setAttribute("tabindex", tier.soldOut ? "-1" : "0");
+      option.setAttribute("aria-checked", index === selectedIndex ? "true" : "false");
       option.className =
-        "appify-bundle-widget__option" +
-        (index === selectedIndex ? " appify-bundle-widget__option--selected" : "");
-      option.disabled = !!tier.soldOut;
+        cx("option") +
+        (index === selectedIndex ? " " + cx("option--selected") : "");
+      if (tier.soldOut) option.setAttribute("aria-disabled", "true");
       var title = interpolateText(tier.label, productTitle, pricing, currency, extras);
       var subtitle = interpolateText(tier.subtitle, productTitle, pricing, currency, extras);
       var badge =
@@ -747,28 +940,30 @@
         (tier.kind === "complete" ? "" : savingsBadge(pricing, currency));
       var priceHtml =
         pricing.savings > 0
-          ? '<span class="appify-bundle-widget__price-compare">' +
+          ? '<span class="'+cx("price-compare")+'">' +
             formatMoney(pricing.compareTotal, currency) +
-            '</span><span class="appify-bundle-widget__price-sale">' +
+            '</span><span class="'+cx("price-sale")+'">' +
             formatMoney(pricing.saleTotal, currency) +
             "</span>"
-          : '<span class="appify-bundle-widget__price-sale">' +
+          : '<span class="'+cx("price-sale")+'">' +
             formatMoney(pricing.saleTotal, currency) +
             "</span>";
       option.innerHTML =
-        '<span class="appify-bundle-widget__radio"></span>' +
-        '<span class="appify-bundle-widget__option-body">' +
-        '<span class="appify-bundle-widget__option-header">' +
-        '<span class="appify-bundle-widget__option-label">' +
+        '<span class="'+cx("option-top")+'">' +
+        '<span class="'+cx("radio")+'"></span>' +
+        '<span class="'+cx("option-intro")+'">' +
+        '<span class="'+cx("option-header")+'">' +
+        '<span class="'+cx("option-label")+'">' +
         (title || tier.minQuantity + " pack") +
-        '</span><span class="appify-bundle-widget__option-prices">' +
+        '</span><span class="'+cx("option-prices")+'">' +
         priceHtml +
         "</span></span>" +
         (subtitle
-          ? '<span class="appify-bundle-widget__option-sub">' +
+          ? '<span class="'+cx("option-sub")+'">' +
             subtitle +
             "</span>"
           : "") +
+        "</span></span>" +
         (tier.kind === "complete"
           ? renderCompleteCards(
               tier,
@@ -779,18 +974,29 @@
               productTitle,
               container.dataset.productImage || "",
             )
-          : "") +
+          : '<span class="'+cx("option-pickers")+'" data-picker-slot="page"></span>') +
         (badge
-          ? '<span class="appify-bundle-widget__badge">' + badge + "</span>"
-          : "") +
-        "</span>";
+          ? '<span class="'+cx("badge")+'">' + badge + "</span>"
+          : "");
       renderBarExtras(option, tier);
-      option.addEventListener("click", function () {
+      function chooseTier(event) {
+        if (tier.soldOut) return;
+        if (event && event.target && event.target.closest("select, input, textarea, label")) {
+          return;
+        }
         selectedIndex = index;
-        optionsEl.querySelectorAll(".appify-bundle-widget__option").forEach(function (node, i) {
-          node.classList.toggle("appify-bundle-widget__option--selected", i === index);
+        optionsEl.querySelectorAll("." + cx("option")).forEach(function (node, i) {
+          node.classList.toggle(cx("option--selected"), i === index);
+          node.setAttribute("aria-checked", i === index ? "true" : "false");
         });
         onSelect(tiers[index]);
+      }
+      option.addEventListener("click", chooseTier);
+      option.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          chooseTier(event);
+        }
       });
       wrap.appendChild(option);
       optionsEl.appendChild(wrap);
@@ -822,14 +1028,11 @@
     var tiers = buildTiers(bundle);
     var selected = { current: null };
 
-    var title = document.createElement("div");
-    title.className = "appify-bundle-widget__title";
-    title.textContent = bundle.blockTitle || config.blockTitle || bundle.title;
-    container.appendChild(title);
+    heading(container, bundle.blockTitle || config.blockTitle || bundle.title);
     renderCountdown(container, config.features);
     var upsellState = { accepted: false };
     var upsellHost = document.createElement("div");
-    upsellHost.className = "appify-bundle-widget__upsell-host";
+    upsellHost.className = cx("upsell-host");
 
     function refreshUpsell(tier) {
       upsellHost.textContent = "";
@@ -838,7 +1041,7 @@
       if (!upsell || !upsell.variantId) return;
 
       var row = document.createElement("label");
-      row.className = "appify-bundle-widget__upsell";
+      row.className = cx("upsell");
       var box = document.createElement("input");
       box.type = "checkbox";
       box.checked = false;
@@ -853,12 +1056,12 @@
         row.appendChild(img);
       }
       var copy = document.createElement("span");
-      copy.className = "appify-bundle-widget__item-copy";
+      copy.className = cx("item-copy");
       copy.innerHTML = "<strong></strong><em></em>";
       copy.querySelector("strong").textContent =
         upsell.text || upsell.productTitle || "Add this item";
       copy.querySelector("em").textContent =
-        "Optional — added only if you check this";
+        "Optional";
       row.appendChild(copy);
       upsellHost.appendChild(row);
     }
@@ -874,6 +1077,7 @@
       function (tier) {
         selected.current = tier;
         refreshUpsell(tier);
+        refreshPickers(tier);
         trackEvent(analyticsUrl, bundle.id, "click", {
           experimentId: bundle.experimentId,
           variantId: bundle.experimentVariant,
@@ -883,6 +1087,92 @@
     );
     refreshUpsell(selected.current);
 
+    var pickerState = { page: [], qty: {}, models: {} };
+    var pickerGen = 0;
+
+    function renderQtyField(host, key) {
+      if (pickerState.qty[key] == null) pickerState.qty[key] = 1;
+      var field = document.createElement("label");
+      field.className = cx("variant-field");
+      var name = document.createElement("span");
+      name.textContent = "Quantity";
+      var input = document.createElement("input");
+      input.type = "number";
+      input.min = "1";
+      input.className = cx("variant-select");
+      input.value = String(pickerState.qty[key]);
+      input.addEventListener("click", function (event) {
+        event.stopPropagation();
+      });
+      input.addEventListener("change", function (event) {
+        event.stopPropagation();
+        pickerState.qty[key] = Math.max(1, parseInt(input.value, 10) || 1);
+        input.value = String(pickerState.qty[key]);
+      });
+      field.appendChild(name);
+      field.appendChild(input);
+      host.appendChild(field);
+    }
+
+    function appendPickerTo(slot, model, stateKey, requirePick, showQty, compact) {
+      if (!slot) return;
+      slot.innerHTML = "";
+      if (!optionAxes(model.options).length && !showQty) return;
+      if (!pickerState[stateKey]) pickerState[stateKey] = [];
+      if (!requirePick && !pickerState[stateKey].length) {
+        pickerState[stateKey] = selectedFromVariant(model);
+      }
+      var group = document.createElement("div");
+      group.className = cx("variant-group") + (compact ? " " + cx("variant-group--compact") : "");
+      function draw() {
+        group.innerHTML = "";
+        renderOptionSelects(group, model, pickerState[stateKey], requirePick, true, draw);
+        if (showQty) renderQtyField(group, stateKey);
+      }
+      draw();
+      slot.appendChild(group);
+    }
+
+    function refreshPickers(tier) {
+      var gen = ++pickerGen;
+      container.querySelectorAll("[data-picker-slot]").forEach(function (slot) {
+        slot.innerHTML = "";
+      });
+      var selectedEl = container.querySelector("." + cx("option--selected"));
+      if (!selectedEl || !tier) return;
+      var requirePick = !!tier.requireVariantSelection;
+      var showQty = !!tier.showQuantitySelector;
+      var pageModel = pageProductModel(container);
+      pickerState.models.page = pageModel;
+      var pageSlot = selectedEl.querySelector('[data-picker-slot="page"]');
+      appendPickerTo(pageSlot, pageModel, "page", requirePick, showQty, tier.kind !== "complete");
+      ensureProductModel(pageModel).then(function (model) {
+        if (gen !== pickerGen || !model) return;
+        pickerState.models.page = model;
+        if (optionAxes(model.options).length || showQty) {
+          appendPickerTo(pageSlot, model, "page", requirePick, showQty, tier.kind !== "complete");
+        }
+      });
+      if (tier.kind !== "complete") return;
+      (tier.products || []).forEach(function (product) {
+        if (product.isDefault) return;
+        ensureProductModel(product).then(function (model) {
+          if (gen !== pickerGen || !model) return;
+          pickerState.models[product.id] = model;
+          appendPickerTo(
+            selectedEl.querySelector('[data-picker-slot="' + product.id + '"]'),
+            model,
+            product.id,
+            requirePick,
+            showQty,
+            false,
+          );
+        });
+      });
+    }
+
+    refreshPickers(selected.current);
+
     var next = tiers.find(function (tier) {
       return tier.minQuantity > (selected.current.minQuantity || 1);
     });
@@ -891,25 +1181,49 @@
         container,
         "Add " +
           (next.minQuantity - (selected.current.minQuantity || 1)) +
-          " more for the next tier",
+          " more",
         (selected.current.minQuantity || 1) / next.minQuantity,
       );
     }
 
-    var button = document.createElement("button");
-    button.type = "button";
-    button.className = "appify-bundle-widget__button";
-    button.textContent = "Add to cart";
+    var button = actionButton("Add to cart");
     button.addEventListener("click", function () {
-      var variantGid = resolveVariantId(container, bundle);
+      var selectedBar = selected.current;
+      var pageModel = pickerState.models.page || pageProductModel(container);
+      var pickedPageId =
+        optionAxes(pageModel.options).length
+          ? findVariantByOptions(pageModel.variants, pickerState.page)
+          : resolveVariantId(container, bundle);
+      if (selectedBar && selectedBar.requireVariantSelection) {
+        var pageReady = !optionAxes(pageModel.options).length || pickedPageId;
+        var extrasReady = ((selectedBar.products || [])).filter(function (product) {
+          return !product.isDefault;
+        }).every(function (product) {
+          var model = pickerState.models[product.id] || product;
+          return (
+            !optionAxes(model.options).length ||
+            findVariantByOptions(model.variants, pickerState[product.id] || [])
+          );
+        });
+        if (!pageReady || !extrasReady) {
+          button.textContent = "Select variants";
+          setTimeout(function () {
+            button.textContent = "Add to cart";
+          }, 1400);
+          return;
+        }
+      }
+      var variantGid = pickedPageId || resolveVariantId(container, bundle);
       if (!variantGid) {
         button.textContent = "Unavailable";
         return;
       }
       var instance = newInstanceId();
-      var selectedBar = selected.current;
       var kind = selectedBar.kind || (type === "bogo" ? "bogo" : "product");
-      var qty = selectedBar.minQuantity || 1;
+      var qty =
+        (selectedBar.showQuantitySelector && pickerState.qty.page) ||
+        selectedBar.minQuantity ||
+        1;
       var items = [
         {
           id: numericVariantId(variantGid),
@@ -932,10 +1246,19 @@
       }
       if (kind === "complete") {
         (selectedBar.products || []).forEach(function (product) {
-          if (product.isDefault || !product.variantId) return;
+          if (product.isDefault) return;
+          var model = pickerState.models[product.id] || product;
+          var pickedId =
+            optionAxes(model.options).length
+              ? findVariantByOptions(model.variants, pickerState[product.id] || [])
+              : product.variantId;
+          if (!pickedId) return;
           items.push({
-            id: numericVariantId(product.variantId),
-            quantity: product.quantity || 1,
+            id: numericVariantId(pickedId),
+            quantity:
+              (selectedBar.showQuantitySelector && pickerState.qty[product.id]) ||
+              product.quantity ||
+              1,
             properties: lineProps(bundle, "addon", {
               instance: instance,
               kind: "complete",
@@ -957,40 +1280,50 @@
       var note = container.querySelector("[data-appify-note]");
       if (note && note.value) items[0].properties.Note = note.value;
       addItems(items, button).then(function () {
-        trackEvent(analyticsUrl, bundle.id, "add_to_cart", {
-          experimentId: bundle.experimentId,
-          variantId: bundle.experimentVariant,
-        });
+        trackAdd(analyticsUrl, bundle);
       });
     });
     container.appendChild(upsellHost);
     container.appendChild(button);
   }
 
-  function renderPickerList(container, items, state, minItems) {
+  function renderPickerList(container, items, state, minItems, requirePick) {
     var list = document.createElement("div");
-    list.className = "appify-bundle-widget__items";
+    list.className = cx("items");
     items.forEach(function (item, index) {
       if (!state[index]) {
         state[index] = {
           qty: item.selectedByDefault || item.role === "required" ? item.quantity || 1 : 0,
           checked: item.role === "required" || item.selectedByDefault,
+          options: [],
+          model: item,
         };
       }
       var row = document.createElement("div");
-      row.className = "appify-bundle-widget__item";
+      row.className = cx("item");
       var locked = item.role === "required";
       row.innerHTML =
         (item.imageUrl
-          ? '<img class="appify-bundle-widget__item-img" src="' +
+          ? '<img class="'+cx("item-img")+'" src="' +
             item.imageUrl +
             '" alt="">'
-          : '<span class="appify-bundle-widget__item-img"></span>') +
-        '<span class="appify-bundle-widget__item-copy"><strong></strong><em></em></span>' +
-        '<span class="appify-bundle-widget__item-qty"></span>';
+          : '<span class="'+cx("item-img")+'"></span>') +
+        '<span class="'+cx("item-copy")+'"><strong></strong><em></em></span>' +
+        '<span class="'+cx("item-qty")+'"></span>';
       row.querySelector("strong").textContent = item.title || "Product";
       row.querySelector("em").textContent = item.role === "required" ? "Required" : "";
-      var qtyBox = row.querySelector(".appify-bundle-widget__item-qty");
+      var variantBox = document.createElement("div");
+      variantBox.className = cx("variant-group");
+      row.querySelector("." + cx("item-copy")).appendChild(variantBox);
+      ensureProductModel(item).then(function (model) {
+        if (!model) return;
+        state[index].model = model;
+        if (!requirePick && !state[index].options.length) {
+          state[index].options = selectedFromVariant(model);
+        }
+        renderOptionSelects(variantBox, model, state[index].options, !!requirePick);
+      });
+      var qtyBox = row.querySelector("." + cx("item-qty"));
       if (locked) {
         qtyBox.textContent = "×" + (item.quantity || 1);
         state[index].qty = item.quantity || 1;
@@ -1026,64 +1359,65 @@
     container.appendChild(list);
     if (minItems) {
       var hint = document.createElement("div");
-      hint.className = "appify-bundle-widget__hint";
-      hint.textContent = "Pick at least " + minItems + " items to unlock the deal.";
+      hint.className = cx("hint");
+      hint.textContent = "Pick at least " + minItems + " items";
       container.appendChild(hint);
     }
   }
 
-  function renderMixOrFixed(container, data, analyticsUrl, type) {
+  function renderMixOrFixed(container, data, analyticsUrl) {
     var bundle = data.bundles[0];
     var config = bundle.config || {};
     var items = offerItems(bundle);
     var state = [];
-    var title = document.createElement("div");
-    title.className = "appify-bundle-widget__title";
-    title.textContent = bundle.blockTitle || config.blockTitle || bundle.title;
-    container.appendChild(title);
+    heading(container, bundle.blockTitle || config.blockTitle || bundle.title);
     renderCountdown(container, config.features);
-    renderPickerList(container, items, state, type === "mix_match" ? config.minItems || 2 : 0);
+    var requirePick = !(config.settings && config.settings.variantSelection === false);
+    renderPickerList(container, items, state, config.minItems || 2, requirePick);
 
-    var button = document.createElement("button");
-    button.type = "button";
-    button.className = "appify-bundle-widget__button";
-    button.textContent = type === "mix_match" ? "Add bundle" : "Add set to cart";
+    var button = actionButton("Add bundle");
     button.addEventListener("click", function () {
       var instance = newInstanceId();
       var selected = items
         .map(function (item, index) {
-          return { item: item, qty: state[index].qty };
+          var model = state[index].model || item;
+          return {
+            item: item,
+            qty: state[index].qty,
+            variantId: pickedVariantId(model, state[index].options, item.variantId),
+          };
         })
         .filter(function (row) {
-          return row.qty > 0 && row.item.variantId;
+          return row.qty > 0 && row.variantId;
         });
-      if (type === "mix_match" && selected.length < (config.minItems || 2)) {
+      if (requirePick && items.some(function (item, index) {
+        return state[index].qty > 0 && optionAxes((state[index].model || item).options).length &&
+          !findVariantByOptions((state[index].model || item).variants, state[index].options);
+      })) {
+        button.textContent = "Select variants";
+        setTimeout(function () {
+          button.textContent = "Add bundle";
+        }, 1400);
+        return;
+      }
+      if (selected.length < (config.minItems || 2)) {
         button.textContent = "Pick more items";
         setTimeout(function () {
           button.textContent = "Add bundle";
         }, 1600);
         return;
       }
-      if (type === "fixed_bundle") {
-        var missing = items.some(function (item, index) {
-          return item.role === "required" && state[index].qty < 1;
-        });
-        if (missing) return;
-      }
       addItems(
         selected.map(function (row) {
           return {
-            id: numericVariantId(row.item.variantId),
+            id: numericVariantId(row.variantId),
             quantity: row.qty,
             properties: lineProps(bundle, row.item.role || "pool", { instance: instance }),
           };
         }),
         button,
       ).then(function () {
-        trackEvent(analyticsUrl, bundle.id, "add_to_cart", {
-          experimentId: bundle.experimentId,
-          variantId: bundle.experimentVariant,
-        });
+        trackAdd(analyticsUrl, bundle);
       });
     });
     container.appendChild(button);
@@ -1096,23 +1430,21 @@
       return item.role === "addon" || item.role === "optional";
     });
     var selected = addons.map(function () {
-      return false;
+      return { checked: false, options: [], model: null };
     });
-    var title = document.createElement("div");
-    title.className = "appify-bundle-widget__title";
-    title.textContent = bundle.blockTitle || "Frequently bought together";
-    container.appendChild(title);
+    var requirePick = !(config.settings && config.settings.variantSelection === false);
+    heading(container, bundle.blockTitle || "Frequently bought together");
 
     var list = document.createElement("div");
-    list.className = "appify-bundle-widget__items";
+    list.className = cx("items");
     addons.forEach(function (item, index) {
-      var row = document.createElement("label");
-      row.className = "appify-bundle-widget__item";
+      var row = document.createElement("div");
+      row.className = cx("item");
       var box = document.createElement("input");
       box.type = "checkbox";
-      box.checked = selected[index];
+      box.checked = selected[index].checked;
       box.addEventListener("change", function () {
-        selected[index] = box.checked;
+        selected[index].checked = box.checked;
         trackEvent(analyticsUrl, bundle.id, "click", {
           experimentId: bundle.experimentId,
           variantId: bundle.experimentVariant,
@@ -1120,18 +1452,26 @@
       });
       row.appendChild(box);
       var copy = document.createElement("span");
-      copy.className = "appify-bundle-widget__item-copy";
+      copy.className = cx("item-copy");
       copy.innerHTML = "<strong></strong>";
       copy.querySelector("strong").textContent = item.title || "Add-on";
+      var variantBox = document.createElement("div");
+      variantBox.className = cx("variant-group");
+      copy.appendChild(variantBox);
       row.appendChild(copy);
+      ensureProductModel(item).then(function (model) {
+        if (!model) return;
+        selected[index].model = model;
+        if (!requirePick && !selected[index].options.length) {
+          selected[index].options = selectedFromVariant(model);
+        }
+        renderOptionSelects(variantBox, model, selected[index].options, requirePick);
+      });
       list.appendChild(row);
     });
     container.appendChild(list);
 
-    var button = document.createElement("button");
-    button.type = "button";
-    button.className = "appify-bundle-widget__button";
-    button.textContent = "Add selected";
+    var button = actionButton("Add selected");
     button.addEventListener("click", function () {
       var instance = newInstanceId();
       var trigger = resolveVariantId(container, bundle);
@@ -1143,20 +1483,32 @@
           properties: lineProps(bundle, "trigger", { instance: instance }),
         });
       }
+      var missing = addons.some(function (item, index) {
+        if (!selected[index].checked) return false;
+        var model = selected[index].model || item;
+        return optionAxes(model.options).length &&
+          !findVariantByOptions(model.variants, selected[index].options);
+      });
+      if (requirePick && missing) {
+        button.textContent = "Select variants";
+        setTimeout(function () {
+          button.textContent = "Add selected";
+        }, 1400);
+        return;
+      }
       addons.forEach(function (item, index) {
-        if (selected[index] && item.variantId) {
-          items.push({
-            id: numericVariantId(item.variantId),
-            quantity: item.quantity || 1,
-            properties: lineProps(bundle, "addon", { instance: instance }),
-          });
-        }
+        if (!selected[index].checked) return;
+        var model = selected[index].model || item;
+        var variantId = pickedVariantId(model, selected[index].options, item.variantId);
+        if (!variantId) return;
+        items.push({
+          id: numericVariantId(variantId),
+          quantity: item.quantity || 1,
+          properties: lineProps(bundle, "addon", { instance: instance }),
+        });
       });
       addItems(items, button).then(function () {
-        trackEvent(analyticsUrl, bundle.id, "add_to_cart", {
-          experimentId: bundle.experimentId,
-          variantId: bundle.experimentVariant,
-        });
+        trackAdd(analyticsUrl, bundle);
       });
     });
     container.appendChild(button);
@@ -1165,10 +1517,7 @@
   function renderGifts(container, data, analyticsUrl) {
     var bundle = data.bundles[0];
     var config = bundle.config || {};
-    var title = document.createElement("div");
-    title.className = "appify-bundle-widget__title";
-    title.textContent = bundle.blockTitle || "Unlock free gifts";
-    container.appendChild(title);
+    heading(container, bundle.blockTitle || "Unlock free gifts");
     fetch(cartRoot() + "cart.js", { credentials: "same-origin" })
       .then(function (res) {
         return res.json();
@@ -1184,18 +1533,16 @@
         renderProgress(
           container,
           unlocked
-            ? config.giftFreeShipping
-              ? "Free gift unlocked — free shipping too"
-              : "Free gift unlocked"
+            ? "Gift unlocked"
             : byQty
-              ? "Add " + remaining + " more items to unlock a gift"
-              : "Add " + formatMoney(remaining * 100, container.dataset.currency) + " more to unlock a gift",
+              ? "Add " + remaining + " more items"
+              : "Add " + formatMoney(remaining * 100, container.dataset.currency) + " more",
           threshold > 0 ? current / threshold : 1,
         );
         renderGiftChoices(container, bundle, cart, unlocked, analyticsUrl);
       })
       .catch(function () {
-        renderProgress(container, "Add more to unlock a free gift", 0.2);
+        renderProgress(container, "Add more to unlock", 0.2);
       });
   }
 
@@ -1211,7 +1558,7 @@
     var currency = container.dataset.currency;
     var pending = [];
     var list = document.createElement("div");
-    list.className = "appify-bundle-widget__items";
+    list.className = cx("items");
 
     gifts.forEach(function (gift) {
       var already = existing.some(function (item) {
@@ -1220,28 +1567,28 @@
       if (!already) pending.push(gift);
 
       var row = document.createElement("div");
-      row.className = "appify-bundle-widget__item";
+      row.className = cx("item");
 
       if (gift.imageUrl) {
         var img = document.createElement("img");
-        img.className = "appify-bundle-widget__item-img";
+        img.className = cx("item-img");
         img.src = gift.imageUrl;
         img.alt = "";
         row.appendChild(img);
       }
 
       var copy = document.createElement("div");
-      copy.className = "appify-bundle-widget__item-copy";
+      copy.className = cx("item-copy");
       var name = document.createElement("strong");
       name.textContent = gift.title || gift.productTitle || "Free gift";
       copy.appendChild(name);
 
       var price = document.createElement("div");
-      price.className = "appify-bundle-widget__gift-price";
+      price.className = cx("gift-price");
       var priceCents = Math.round((Number(gift.price) || 0) * 100);
       if (priceCents > 0) {
         var strike = document.createElement("span");
-        strike.className = "appify-bundle-widget__strike";
+        strike.className = cx("strike");
         strike.textContent = formatMoney(priceCents, currency);
         price.appendChild(strike);
         price.appendChild(document.createTextNode(" "));
@@ -1262,28 +1609,26 @@
 
     if (!unlocked) {
       var locked = document.createElement("div");
-      locked.className = "appify-bundle-widget__hint";
+      locked.className = cx("hint");
       locked.textContent =
-        "Gifts stay out of your cart until you unlock the offer and tap Add free gift.";
+        "Unlock the offer, then tap Add free gift.";
       container.appendChild(locked);
       return;
     }
 
     if (!pending.length) {
       var added = document.createElement("div");
-      added.className = "appify-bundle-widget__hint";
-      added.textContent = "These free gifts are already in your cart.";
+      added.className = cx("hint");
+      added.textContent = "Gifts are already in your cart.";
       container.appendChild(added);
       return;
     }
 
-    var button = document.createElement("button");
-    button.type = "button";
-    button.className = "appify-bundle-widget__button";
-    button.textContent =
+    var button = actionButton(
       pending.length === 1
         ? "Add free gift"
-        : "Add " + pending.length + " free gifts";
+        : "Add " + pending.length + " free gifts",
+    );
     button.addEventListener("click", function () {
       var instance = newInstanceId();
       addItems(
@@ -1299,18 +1644,15 @@
         }),
         button,
       ).then(function () {
-        trackEvent(analyticsUrl, bundle.id, "add_to_cart", {
-          experimentId: bundle.experimentId,
-          variantId: bundle.experimentVariant,
-        });
+        trackAdd(analyticsUrl, bundle);
       });
     });
     container.appendChild(button);
 
     var consent = document.createElement("div");
-    consent.className = "appify-bundle-widget__hint";
+    consent.className = cx("hint");
     consent.textContent =
-      "These gifts are optional and free. Nothing is added until you tap the button.";
+      "Optional and free. Nothing is added until you tap the button.";
     container.appendChild(consent);
   }
 
@@ -1328,29 +1670,20 @@
     var type = bundle.type || "quantity_break";
     setThemePurchaseControlsHidden(Boolean(HIDES_ATC[type]), container);
     applyStyles(container, data.widget, bundle.config);
-    trackEvent(analyticsUrl, bundle.id, "view", {
+    var meta = {
       experimentId: bundle.experimentId,
       variantId: bundle.experimentVariant,
-    });
-    trackEvent(analyticsUrl, bundle.id, "impression", {
-      experimentId: bundle.experimentId,
-      variantId: bundle.experimentVariant,
-    });
+    };
+    trackEvent(analyticsUrl, bundle.id, "view", meta);
+    trackEvent(analyticsUrl, bundle.id, "impression", meta);
 
     container.innerHTML = "";
-    applyCustomCss(container, bundle.config, bundle.id);
+    applyCustomCss(container, bundle.config);
 
-    if (type === "mix_match") {
-      renderMixOrFixed(container, data, analyticsUrl, type);
-    } else if (type === "fixed_bundle") {
-      renderQuantityLike(container, data, analyticsUrl, type);
-    } else if (type === "fbt_upsell") {
-      renderFbt(container, data, analyticsUrl);
-    } else if (type === "gifts") {
-      renderGifts(container, data, analyticsUrl);
-    } else {
-      renderQuantityLike(container, data, analyticsUrl, type);
-    }
+    if (type === "mix_match") renderMixOrFixed(container, data, analyticsUrl);
+    else if (type === "fbt_upsell") renderFbt(container, data, analyticsUrl);
+    else if (type === "gifts") renderGifts(container, data, analyticsUrl);
+    else renderQuantityLike(container, data, analyticsUrl, type);
   }
 
   function mountNearProductForm(el) {
@@ -1394,14 +1727,10 @@
     el.innerHTML = "";
     mountNearProductForm(el);
 
-    var controller =
-      typeof AbortController !== "undefined" ? new AbortController() : null;
-    var timedOut = false;
+    var controller = new AbortController();
     var timer = setTimeout(function () {
-      timedOut = true;
-      if (controller) controller.abort();
-      hideWidget(el);
-    }, FETCH_TIMEOUT_MS);
+      controller.abort();
+    }, 10000);
 
     var query =
       proxyUrl +
@@ -1412,20 +1741,18 @@
 
     fetch(query, {
       credentials: "same-origin",
-      signal: controller ? controller.signal : undefined,
+      signal: controller.signal,
       headers: { Accept: "application/json" },
     })
       .then(function (res) {
-        if (!res.ok) throw new Error("proxy failed");
+        if (!res.ok) throw new Error("x");
         return res.json();
       })
       .then(function (data) {
-        if (timedOut) return;
         clearTimeout(timer);
         renderWidget(el, data, analyticsUrl);
       })
       .catch(function () {
-        if (timedOut) return;
         clearTimeout(timer);
         hideWidget(el);
       });

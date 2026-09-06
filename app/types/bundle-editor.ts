@@ -19,10 +19,22 @@ export type OfferPlacement = "product" | "cart" | "both";
 
 export type FbtMode = "addons" | "combo";
 
+export interface ProductOptionAxis {
+  name: string;
+  values: string[];
+}
+
+export interface ProductOptionVariant {
+  id: string;
+  available?: boolean;
+  options: string[];
+}
+
 export interface OfferItem {
   id: string;
   productId: string;
   variantId: string;
+  handle?: string;
   title: string;
   variantTitle?: string;
   imageUrl?: string;
@@ -33,6 +45,8 @@ export interface OfferItem {
   selectedByDefault: boolean;
   discountType?: "percentage" | "fixed";
   discountValue?: number;
+  options?: ProductOptionAxis[];
+  variants?: ProductOptionVariant[];
 }
 
 export type BarKind = "product" | "quantity_break" | "complete" | "bogo";
@@ -43,6 +57,7 @@ export interface BarProduct {
   id: string;
   productId: string;
   variantId: string;
+  handle?: string;
   title: string;
   imageUrl?: string;
   price?: number;
@@ -53,6 +68,8 @@ export interface BarProduct {
   hidePrice: boolean;
   titleTemplate: string;
   isDefault: boolean;
+  options?: ProductOptionAxis[];
+  variants?: ProductOptionVariant[];
 }
 
 export type FontWeightStyle = "regular" | "medium" | "bold";
@@ -150,9 +167,12 @@ export interface PickedProduct {
   id: string;
   title: string;
   variantId: string;
+  handle?: string;
   imageUrl?: string;
   price?: number;
   compareAtPrice?: number;
+  options?: ProductOptionAxis[];
+  variants?: ProductOptionVariant[];
 }
 
 export interface PreviewProduct {
@@ -165,6 +185,7 @@ export interface PreviewProduct {
   compareAtPrice?: number;
   currencyCode: string;
   metafields?: string[];
+  options?: ProductOptionAxis[];
 }
 
 export interface BundleBar {

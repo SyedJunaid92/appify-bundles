@@ -7,7 +7,7 @@ name = "Appify Bundles"
 handle = "appify-bundles"
 
 [access_scopes]
-scopes = "read_products,write_products,write_cart_transforms,read_orders,read_discounts,write_discounts"
+scopes = "read_products,write_products,write_cart_transforms,read_orders,read_discounts,write_discounts,read_themes"
 use_legacy_install_flow = false
 
 [auth]

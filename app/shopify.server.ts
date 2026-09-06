@@ -26,11 +26,29 @@ import {
 import prisma from "./db.server";
 import { ensureCartTransform } from "./services/shopify-sync.server";
 
+const REQUIRED_SCOPES = [
+  "read_products",
+  "write_products",
+  "write_cart_transforms",
+  "read_orders",
+  "read_discounts",
+  "write_discounts",
+  "read_themes",
+];
+
+function appScopes() {
+  const fromEnv = (process.env.SCOPES || "")
+    .split(",")
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+  return [...new Set([...fromEnv, ...REQUIRED_SCOPES])];
+}
+
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ApiVersion.April26,
-  scopes: process.env.SCOPES?.split(","),
+  scopes: appScopes(),
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),

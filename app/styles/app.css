@@ -28,9 +28,12 @@
 
 .app-shell__theme-toggle {
   position: fixed;
-  bottom: 16px;
-  right: 16px;
-  z-index: 100;
+  bottom: auto;
+  left: auto;
+  right: 20px;
+  top: 65px;
+
+  z-index: 40;
 }
 
 .theme-toggle {
@@ -406,4 +409,38 @@
     grid-area: actions;
     align-self: start;
   }
+}
+
+.setup-guide-step {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.setup-guide-step__num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e1e3e5;
+  color: #6d7175;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.setup-guide-step__num--done {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.setup-guide-step__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
 }

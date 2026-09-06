@@ -30,10 +30,23 @@
 }
 
 .appify-bundle-widget__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-weight: 600;
   margin-bottom: 0.75rem;
   color: var(--ab-block-title);
   font-size: var(--ab-block-title-size);
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.appify-bundle-widget__title::before,
+.appify-bundle-widget__title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--ab-border);
 }
 
 .appify-bundle-widget__options {
@@ -74,8 +87,9 @@
 
 .appify-bundle-widget__option {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
   padding: 0.875rem 1rem;
   border: 2px solid var(--ab-border);
   border-radius: var(--ab-radius);
@@ -86,6 +100,17 @@
   transition: border-color 0.15s ease, background 0.15s ease;
   width: 100%;
   position: relative;
+}
+
+.appify-bundle-widget__option-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.appify-bundle-widget__option-intro {
+  flex: 1;
+  min-width: 0;
 }
 
 .appify-bundle-widget__option--selected {
@@ -104,7 +129,7 @@
   border: 2px solid var(--ab-border);
   border-radius: 50%;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 0;
   position: relative;
 }
 
@@ -204,11 +229,11 @@
 
 .appify-bundle-widget__button {
   width: 100%;
-  padding: 0.875rem;
+  padding: 0.85rem 1.25rem;
   background: var(--ab-primary);
   color: var(--ab-button-text);
   border: none;
-  border-radius: var(--ab-radius);
+  border-radius: 999px;
   font-size: var(--ab-font-size);
   font-weight: 600;
   cursor: pointer;
@@ -284,7 +309,7 @@
 
 .appify-bundle-widget__item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 0.75rem;
   border: 1px solid var(--ab-border);
@@ -302,6 +327,10 @@
 }
 
 .appify-bundle-widget__item-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
   flex: 1;
   min-width: 0;
 }
@@ -349,7 +378,7 @@
   border: 1px solid var(--ab-border);
   border-radius: 10px;
   background: #fff;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .appify-bundle-widget__complete-item {
@@ -359,8 +388,9 @@
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.75rem 0.5rem;
+  padding: 0.75rem 0.65rem;
   text-align: center;
+  min-width: 0;
 }
 
 .appify-bundle-widget__complete-item + .appify-bundle-widget__complete-item {
@@ -374,6 +404,16 @@
   border-radius: 8px;
   object-fit: cover;
   background: #f1f2f3;
+  flex-shrink: 0;
+}
+
+.appify-bundle-widget__complete-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .appify-bundle-widget__complete-title {
@@ -394,11 +434,101 @@
   color: var(--ab-compare);
 }
 
+.appify-bundle-widget__complete--stack {
+  flex-direction: column;
+}
+
+.appify-bundle-widget__complete--stack .appify-bundle-widget__complete-item {
+  flex-direction: row;
+  align-items: flex-start;
+  text-align: left;
+  padding: 0.85rem 0.75rem;
+  gap: 0.65rem;
+}
+
+.appify-bundle-widget__complete--stack .appify-bundle-widget__complete-item + .appify-bundle-widget__complete-item {
+  border-left: none;
+  border-top: 1px solid var(--ab-border);
+}
+
+.appify-bundle-widget__complete--stack .appify-bundle-widget__complete-copy {
+  align-items: flex-start;
+  flex: 1;
+}
+
+.appify-bundle-widget__complete--stack .appify-bundle-widget__complete-price {
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.appify-bundle-widget__complete--stack .appify-bundle-widget__complete-plus {
+  top: 0;
+  left: 50%;
+  margin-left: 0;
+  margin-top: 0;
+  transform: translate(-50%, -50%);
+}
+
+.appify-bundle-widget__option-pickers,
+.appify-bundle-widget__complete-pickers {
+  width: 100%;
+  margin-top: 0.45rem;
+}
+
+.appify-bundle-widget__option-pickers:empty,
+.appify-bundle-widget__complete-pickers:empty {
+  display: none;
+  margin: 0;
+}
+
+.appify-bundle-widget__option:not(.appify-bundle-widget__option--selected) .appify-bundle-widget__option-pickers {
+  display: none;
+}
+
+.appify-bundle-widget__variant-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.appify-bundle-widget__variant-group--compact {
+  max-width: 160px;
+}
+
+.appify-bundle-widget__variant-label {
+  font-size: 11px;
+  color: var(--ab-muted);
+}
+
+.appify-bundle-widget__variant-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 12px;
+}
+
+.appify-bundle-widget__variant-select {
+  width: 100%;
+  border: 1px solid var(--ab-border);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  background: #fff;
+  color: inherit;
+}
+
+.appify-bundle-widget__complete-pickers {
+  position: relative;
+  z-index: 2;
+}
+
 .appify-bundle-widget__complete-plus {
   position: absolute;
   left: 0;
   top: 50%;
-  z-index: 1;
+  z-index: 0;
   width: 22px;
   height: 22px;
   margin-left: -11px;
@@ -409,6 +539,7 @@
   font-size: 12px;
   font-weight: 700;
   line-height: 22px;
+  text-align: center;
 }
 
 .appify-overlay-badge {

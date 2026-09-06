@@ -1,5 +1,18 @@
 import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
-import type { PreviewProduct } from "../types/bundle-editor";
+import type { PreviewProduct, ProductOptionAxis } from "../types/bundle-editor";
+
+function previewOptionAxes(
+  options?: Array<{ name?: string; values?: string[] }>,
+): ProductOptionAxis[] {
+  return (options ?? []).flatMap((option) => {
+    const values = option.values ?? [];
+    if (!option.name || values.length === 0) return [];
+    if (option.name === "Title" && values.length === 1 && values[0] === "Default Title") {
+      return [];
+    }
+    return [{ name: option.name, values }];
+  });
+}
 
 export async function fetchPreviewProducts(
   admin: AdminApiContext,
@@ -17,6 +30,10 @@ export async function fetchPreviewProducts(
             title
             featuredImage {
               url
+            }
+            options {
+              name
+              values
             }
             variants(first: 5) {
               nodes {
@@ -41,6 +58,7 @@ export async function fetchPreviewProducts(
       id: string;
       title: string;
       featuredImage?: { url: string };
+      options?: Array<{ name?: string; values?: string[] }>;
       variants: {
         nodes: Array<{
           id: string;
@@ -62,6 +80,7 @@ export async function fetchPreviewProducts(
           ? Number(variant.compareAtPrice)
           : undefined,
         currencyCode,
+        options: previewOptionAxes(product.options),
       };
     },
   );
@@ -85,6 +104,10 @@ export async function fetchProductsByIds(
             title
             featuredImage {
               url
+            }
+            options {
+              name
+              values
             }
             variants(first: 1) {
               nodes {
@@ -110,6 +133,7 @@ export async function fetchProductsByIds(
         id: string;
         title: string;
         featuredImage?: { url: string };
+        options?: Array<{ name?: string; values?: string[] }>;
         variants: {
           nodes: Array<{
             id: string;
@@ -131,6 +155,7 @@ export async function fetchProductsByIds(
             ? Number(variant.compareAtPrice)
             : undefined,
           currencyCode,
+          options: previewOptionAxes(product.options),
         };
       },
     );

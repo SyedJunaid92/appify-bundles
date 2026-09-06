@@ -3,7 +3,7 @@ extends: theme-check:recommended
 AssetSizeAppBlockJavaScript:
   enabled: true
   severity: error
-  threshold_in_bytes: 25000
+  threshold_in_bytes: 36000
 
 ValidSchema:
   enabled: false

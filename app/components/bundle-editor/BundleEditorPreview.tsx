@@ -231,14 +231,26 @@ function PreviewBar({
           )}
         />
       ))}
-    <button
-      type="button"
+    <div
+      role="radio"
+      tabIndex={bar.soldOut ? -1 : 0}
+      aria-checked={selected}
       className={
         "be-widget-preview__option" +
         (selected ? " be-widget-preview__option--selected" : "")
       }
-      onClick={onSelect}
-      disabled={bar.soldOut}
+      onClick={(event) => {
+        if (bar.soldOut) return;
+        if ((event.target as HTMLElement).closest("select, input, label")) return;
+        onSelect();
+      }}
+      onKeyDown={(event) => {
+        if (bar.soldOut) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
       style={{ opacity: bar.soldOut ? 0.5 : 1 }}
     >
       {featuredImage && (
@@ -249,22 +261,29 @@ function PreviewBar({
           style={{ width: bar.image?.size, height: bar.image?.size }}
         />
       )}
-      <span className="be-widget-preview__radio" />
-      <span className="be-widget-preview__content">
-        <div className="be-widget-preview__row">
-          <span className="be-widget-preview__name">{title}</span>
-          <span className="be-widget-preview__prices">
-            <span className="be-widget-preview__price">
-              {formatMoney(displayPrice, currency, decimals)}
-            </span>
-            {pricing.savings > 0 && (
-              <span className="be-widget-preview__compare">
-                {formatMoney(pricing.compareTotal, currency, decimals)}
+      <div className="be-widget-preview__top">
+        <span className="be-widget-preview__radio" />
+        <span className="be-widget-preview__intro">
+          <div className="be-widget-preview__row">
+            <span className="be-widget-preview__name">{title}</span>
+            <span className="be-widget-preview__prices">
+              <span className="be-widget-preview__price">
+                {formatMoney(displayPrice, currency, decimals)}
               </span>
-            )}
-          </span>
-        </div>
-        {subtitle && <div className="be-widget-preview__sub">{subtitle}</div>}
+              {pricing.savings > 0 && (
+                <span className="be-widget-preview__compare">
+                  {formatMoney(pricing.compareTotal, currency, decimals)}
+                </span>
+              )}
+            </span>
+          </div>
+          {subtitle && <div className="be-widget-preview__sub">{subtitle}</div>}
+        </span>
+      </div>
+      <span className="be-widget-preview__content">
+        {selected && bar.kind !== "complete" && (
+          <PreviewVariantPickers options={product.options} compact />
+        )}
         {bar.kind === "complete" && (
           <CompleteBundleCards
             bar={bar}
@@ -322,7 +341,7 @@ function PreviewBar({
           </div>
         )}
       </span>
-    </button>
+    </div>
     </div>
   );
 }
@@ -358,6 +377,7 @@ function CompleteBundleCards({
         mainConfig?.discountValue ?? bar.discountValue,
       ),
       hidePrice: Boolean(mainConfig?.hidePrice),
+      options: product.options,
     },
     ...complements.map((item) =>
       completeCardFromProduct(item, unitSale, unitCompare, bar, settings),
@@ -372,6 +392,7 @@ function CompleteBundleCards({
       compare: unitCompare * 0.25,
       sale: applyBarPrice(unitSale * 0.25, bar.priceType, bar.discountValue),
       hidePrice: false,
+      options: undefined,
     });
   }
 
@@ -391,7 +412,10 @@ function CompleteBundleCards({
             ) : (
               <span className="be-complete-cards__ph" />
             )}
-            <span className="be-complete-cards__title">{card.title}</span>
+            <div className="be-complete-cards__copy">
+              <span className="be-complete-cards__title">{card.title}</span>
+              <PreviewVariantPickers options={card.options} />
+            </div>
             {!card.hidePrice && (
               <span className="be-complete-cards__price">
                 <strong>{formatMoney(card.sale, currency, decimals)}</strong>
@@ -430,5 +454,50 @@ function completeCardFromProduct(
       item.discountValue ?? bar.discountValue,
     ),
     hidePrice: item.hidePrice,
+    options: item.options,
   };
+}
+
+function PreviewVariantPickers({
+  options,
+  compact = false,
+}: {
+  options?: PreviewProduct["options"] | BarProduct["options"];
+  compact?: boolean;
+}) {
+  const axes = (options ?? []).filter((option) => {
+    if (!option.name || option.values.length === 0) return false;
+    return !(
+      option.name === "Title" &&
+      option.values.length === 1 &&
+      option.values[0] === "Default Title"
+    );
+  });
+  if (axes.length === 0) return null;
+
+  return (
+    <div
+      className={
+        "be-preview-variants" + (compact ? " be-preview-variants--compact" : "")
+      }
+    >
+      <span className="be-preview-variants__label">
+        {axes.map((axis) => axis.name).join(", ")}
+      </span>
+      {axes.map((axis) => (
+        <select
+          key={axis.name}
+          className="be-preview-variants__select"
+          defaultValue={axis.values[0]}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {axis.values.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      ))}
+    </div>
+  );
 }

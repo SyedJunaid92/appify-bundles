@@ -1,13 +1,52 @@
+import type { ReactNode } from "react";
 import { useFetcher } from "react-router";
 import { CreateBundleButton } from "./CreateBundleButton";
 
 type Props = {
   themeEditorUrl: string;
   hasBundles: boolean;
+  embedActive: boolean;
   dismissed: boolean;
 };
 
-export function SetupGuide({ themeEditorUrl, hasBundles, dismissed }: Props) {
+function SetupStep({
+  step,
+  title,
+  done,
+  children,
+}: {
+  step: number;
+  title: string;
+  done: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <s-box padding="base" borderWidth="base" borderRadius="base" background="base">
+      <div className="setup-guide-step">
+        <span
+          className={
+            done
+              ? "setup-guide-step__num setup-guide-step__num--done"
+              : "setup-guide-step__num"
+          }
+        >
+          {step}
+        </span>
+        <div className="setup-guide-step__body">
+          <s-heading>{title}</s-heading>
+          {done ? <s-badge tone="success">Completed</s-badge> : children}
+        </div>
+      </div>
+    </s-box>
+  );
+}
+
+export function SetupGuide({
+  themeEditorUrl,
+  hasBundles,
+  embedActive,
+  dismissed,
+}: Props) {
   const fetcher = useFetcher();
 
   if (dismissed) return null;
@@ -26,38 +65,27 @@ export function SetupGuide({ themeEditorUrl, hasBundles, dismissed }: Props) {
             </fetcher.Form>
           </s-stack>
 
-          <s-box padding="base" borderWidth="base" borderRadius="base" background="base">
-            <s-stack direction="block" gap="base">
-              <s-stack direction="inline" gap="base">
-                <span style={{ width: 24, height: 24, borderRadius: "50%", background: "#1a1a1a", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>1</span>
-                <s-heading>Activate Appify Bundles on your storefront</s-heading>
-              </s-stack>
-              <s-paragraph>
-                Activate the app embed by clicking the button below, then click{" "}
-                <strong>Save</strong> on the theme editor page.
-              </s-paragraph>
-              <s-button
-                href={themeEditorUrl}
-                target="_blank"
-                variant="primary"
-              >
-                Activate app embed
-              </s-button>
-            </s-stack>
-          </s-box>
+          <SetupStep
+            step={1}
+            title="Activate Appify Bundles on your storefront"
+            done={embedActive}
+          >
+            <s-paragraph>
+              Activate the app embed by clicking the button below, then click{" "}
+              <strong>Save</strong> on the theme editor page.
+            </s-paragraph>
+            <s-button href={themeEditorUrl} target="_blank" variant="primary">
+              Activate app embed
+            </s-button>
+          </SetupStep>
 
-          <s-box padding="base" borderWidth="base" borderRadius="base" background="base">
-            <s-stack direction="inline" gap="base">
-              <span style={{ width: 24, height: 24, borderRadius: "50%", background: hasBundles ? "#1a1a1a" : "#e1e3e5", color: hasBundles ? "#fff" : "#6d7175", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>2</span>
-              <s-stack direction="block" gap="small">
-                <s-heading>Create your first bundle deal</s-heading>
-                {!hasBundles && (
-                  <CreateBundleButton variant="secondary" />
-                )}
-                {hasBundles && <s-badge tone="success">Completed</s-badge>}
-              </s-stack>
-            </s-stack>
-          </s-box>
+          <SetupStep
+            step={2}
+            title="Create your first bundle deal"
+            done={hasBundles}
+          >
+            <CreateBundleButton variant="secondary" />
+          </SetupStep>
         </s-stack>
       </s-box>
     </s-section>

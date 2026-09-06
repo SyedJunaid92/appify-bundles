@@ -1,14 +1,18 @@
 {% assign appify_collection_ids = product.collections | map: 'id' | join: ',' %}
+{% capture appify_variants %}[{% for variant in product.variants %}{"id":{{ variant.id }},"available":{{ variant.available }},"options":{{ variant.options | json }}}{% unless forloop.last %},{% endunless %}{% endfor %}]{% endcapture %}
 <div
   class="appify-bundle-widget"
   data-appify-bundle-widget
   data-placement="product"
   data-product-id="{{ product.id }}"
+  data-product-handle="{{ product.handle | escape }}"
   data-product-title="{{ product.title | escape }}"
   data-product-image="{{ product.featured_image | image_url: width: 160 }}"
   data-variant-id="{{ product.selected_or_first_available_variant.id }}"
   data-variant-price-cents="{{ product.selected_or_first_available_variant.price }}"
   data-variant-compare-cents="{{ product.selected_or_first_available_variant.compare_at_price }}"
+  data-product-options="{{ product.options_with_values | json | escape }}"
+  data-product-variants="{{ appify_variants | escape }}"
   data-currency="{{ cart.currency.iso_code }}"
   data-collection-ids="{{ appify_collection_ids }}"
   data-proxy-url="/apps/appify-bundles/bundles"

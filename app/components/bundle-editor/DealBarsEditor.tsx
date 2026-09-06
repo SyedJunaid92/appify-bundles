@@ -540,10 +540,13 @@ function CompleteProducts({
           isDefault: false,
           productId: picked.id,
           variantId: picked.variantId,
+          handle: picked.handle,
           title: picked.title,
           imageUrl: picked.imageUrl,
           price: picked.price,
           compareAtPrice: picked.compareAtPrice,
+          options: picked.options,
+          variants: picked.variants,
         }),
       ],
     });

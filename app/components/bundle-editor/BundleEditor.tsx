@@ -57,21 +57,49 @@ export function BundleEditor({
   const mapPicked = (product: {
     id: string;
     title: string;
+    handle?: string;
+    options?: Array<{ name?: string; values?: string[] }>;
     variants?: Array<{
       id?: string;
+      title?: string;
       price?: string | number;
       compareAtPrice?: string | number | null;
+      selectedOptions?: Array<{ name?: string; value?: string | null }>;
+      availableForSale?: boolean;
     }>;
     images?: Array<{ originalSrc?: string; url?: string }>;
   }): PickedProduct => ({
     id: product.id,
     title: product.title,
+    handle: product.handle,
     variantId: product.variants?.[0]?.id ?? product.id,
     imageUrl:
       product.images?.[0]?.originalSrc ?? product.images?.[0]?.url,
     price: Number(product.variants?.[0]?.price ?? 0) || undefined,
     compareAtPrice:
       Number(product.variants?.[0]?.compareAtPrice ?? 0) || undefined,
+    options: (product.options || [])
+      .filter((option) => option.name)
+      .map((option) => ({
+        name: option.name || "",
+        values: option.values || [],
+      })),
+    variants: (product.variants || [])
+      .filter((variant) => variant.id)
+      .map((variant) => {
+        const selected = (variant.selectedOptions || [])
+          .map((option) => option.value || "")
+          .filter(Boolean);
+        return {
+          id: String(variant.id),
+          available: variant.availableForSale !== false,
+          options: selected.length
+            ? selected
+            : String(variant.title || "")
+                .split(" / ")
+                .filter(Boolean),
+        };
+      }),
   });
 
   const toSelectionIds = (ids: string[]) =>
@@ -144,10 +172,13 @@ export function BundleEditor({
         createOfferItem({
           productId: picked.id,
           variantId: picked.variantId,
+          handle: picked.handle,
           title: picked.title,
           imageUrl: picked.imageUrl,
           price: picked.price,
           compareAtPrice: picked.compareAtPrice,
+          options: picked.options,
+          variants: picked.variants,
           role,
           selectedByDefault: role === "addon" || role === "optional",
         }),

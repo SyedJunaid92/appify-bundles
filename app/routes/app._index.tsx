@@ -8,19 +8,22 @@ import { formatCurrency } from "../utils/analytics-format";
 import { CreateBundleButton } from "../components/CreateBundleButton";
 import { SetupGuide } from "../components/SetupGuide";
 import { getThemeEditorEmbedUrl } from "../constants/bundle-types";
+import { isAppEmbedActiveOnMainTheme } from "../services/theme-embed.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
-  const [dashboard, analytics] = await Promise.all([
+  const [dashboard, analytics, embedActive] = await Promise.all([
     getDashboardData(session.shop),
     getAnalyticsSummary(session.shop, "30d"),
+    isAppEmbedActiveOnMainTheme(admin),
   ]);
 
   return {
     ...dashboard,
     analytics,
+    embedActive,
     themeEditorUrl: getThemeEditorEmbedUrl(session.shop, apiKey),
   };
 };
@@ -32,8 +35,15 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 export default function Dashboard() {
-  const { bundles, totalBundles, activeCount, dismissed, themeEditorUrl, analytics } =
-    useLoaderData<typeof loader>();
+  const {
+    bundles,
+    totalBundles,
+    activeCount,
+    dismissed,
+    embedActive,
+    themeEditorUrl,
+    analytics,
+  } = useLoaderData<typeof loader>();
 
   return (
     <s-page heading="Appify Bundles">
@@ -70,6 +80,7 @@ export default function Dashboard() {
       <SetupGuide
         themeEditorUrl={themeEditorUrl}
         hasBundles={totalBundles > 0}
+        embedActive={embedActive}
         dismissed={dismissed}
       />
 
@@ -114,11 +125,13 @@ export default function Dashboard() {
 
       <s-section slot="aside" heading="Get started">
         <s-unordered-list>
-          <s-list-item>
-            <s-link href={themeEditorUrl} target="_blank">
-              Activate app embed on product pages
-            </s-link>
-          </s-list-item>
+          {!embedActive ? (
+            <s-list-item>
+              <s-link href={themeEditorUrl} target="_blank">
+                Activate app embed on product pages
+              </s-link>
+            </s-list-item>
+          ) : null}
           <s-list-item>
             <s-link href="/app/bundles/new">Create a product bundle</s-link>
           </s-list-item>
