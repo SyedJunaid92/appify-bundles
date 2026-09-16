@@ -1,10 +1,7 @@
 import { unauthenticated } from "../shopify.server";
-import {
-  buildOrderProcessedEvent,
-  isShopifyAppPricingEnabled,
-} from "../utils/app-events";
+import { buildOrderProcessedEvent } from "../utils/app-events";
 
-export { buildOrderProcessedEvent, isShopifyAppPricingEnabled };
+export { buildOrderProcessedEvent };
 
 const AUTH_URL = "https://api.shopify.com/auth/access_token";
 const DEFAULT_EVENTS_VERSION = "2026-07";

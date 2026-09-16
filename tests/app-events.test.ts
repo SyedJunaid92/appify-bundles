@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { ORDER_PROCESSED_EVENT_HANDLE } from "../app/constants/billing";
 import {
   buildOrderProcessedEvent,
-  isShopifyAppPricingEnabled,
   numericShopId,
   orderProcessedIdempotencyKey,
 } from "../app/utils/app-events";
@@ -33,12 +32,6 @@ describe("App Events order_processed payload", () => {
     expect(orderProcessedIdempotencyKey("gid://shopify/Shop/99", "abc")).toBe(
       "op_99_abc",
     );
-  });
-
-  it("only treats the explicit env flag as enabled", () => {
-    expect(isShopifyAppPricingEnabled(undefined)).toBe(false);
-    expect(isShopifyAppPricingEnabled("false")).toBe(false);
-    expect(isShopifyAppPricingEnabled("true")).toBe(true);
   });
 });
 

@@ -178,3 +178,11 @@ export function billingErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return "Shopify could not start billing approval. Try Continue on Shopify again.";
 }
+
+export function isShopifyAppPricingBlockedError(error: unknown): boolean {
+  const message = billingErrorMessage(error);
+  return (
+    /cannot use the billing api/i.test(message) &&
+    /shopify app pricing/i.test(message)
+  );
+}

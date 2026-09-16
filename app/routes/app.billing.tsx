@@ -23,15 +23,14 @@ import {
   canonicalizePlanKey,
   isVolumeSubscription,
 } from "../constants/billing";
-import { clearActivePlan, getBillingSummary } from "../models/billing.server";
+import { getBillingSummary } from "../models/billing.server";
 import { formatOrderRange } from "../utils/billing-calculation";
+import { billingModeLabel } from "../services/billing-mode.server";
 import {
-  billingModeLabel,
-  isShopBillingTestMode,
-} from "../services/billing-mode.server";
-import {
+  rememberPlanHandleFromRequest,
   requestVolumeBillingIfNeeded,
   startVolumeBilling,
+  volumeBillingApprovalUrl,
 } from "../services/billing-gate.server";
 import {
   isShopifyAdminCheckoutUrl,
@@ -39,7 +38,8 @@ import {
 } from "../utils/embedded-app";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { billing, admin, session } = await authenticate.admin(request);
+  const { billing, admin, session, redirect } = await authenticate.admin(request);
+  await rememberPlanHandleFromRequest(request, session.shop);
   const approval = await requestVolumeBillingIfNeeded(
     request,
     billing,
@@ -48,22 +48,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
   const isTest = approval.isTest;
 
-  const billingCheck = await billing.check({
-    plans: [...SHOPIFY_BILLING_PLAN_KEYS],
-    isTest,
-  });
+  if (!approval.hasPaidPlan && approval.confirmationUrl) {
+    return redirect(approval.confirmationUrl, { target: "_top" });
+  }
+
+  let shopifyPlanName: string | undefined;
+  let subscription: { id?: string; name?: string } | null = null;
+  try {
+    const billingCheck = await billing.check({
+      plans: [...SHOPIFY_BILLING_PLAN_KEYS],
+      isTest,
+    });
+    subscription = billingCheck.appSubscriptions[0] ?? null;
+    shopifyPlanName = subscription?.name;
+  } catch {
+    subscription = null;
+  }
 
   const summary = await getBillingSummary(session.shop);
   const currentPlan = summary.recommendedPlan;
-  const shopifyPlanName = billingCheck.appSubscriptions[0]?.name;
   const hasActivePayment =
-    billingCheck.hasActivePayment || isVolumeSubscription(shopifyPlanName);
+    approval.hasPaidPlan || isVolumeSubscription(shopifyPlanName);
 
   return {
     tiers: BILLING_TIERS,
     hasActivePayment,
     currentPlan,
-    subscription: billingCheck.appSubscriptions[0] ?? null,
+    subscription,
     monthlyOrderCount: summary.billing.monthlyOrderCount,
     charge: summary.charge,
     history: summary.history,
@@ -76,41 +87,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     usageThreshold: USAGE_ORDER_THRESHOLD,
     confirmationUrl: approval.confirmationUrl,
     requestError: approval.error,
+    pricingPlansUrl: volumeBillingApprovalUrl(request, session.shop),
   };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing, admin, session } = await authenticate.admin(request);
-  const isTest = await isShopBillingTestMode(admin);
+  const { session, redirect } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "subscribe");
+  const pricingPlansUrl = volumeBillingApprovalUrl(request, session.shop);
 
   if (intent === "cancel") {
-    const billingCheck = await billing.check({
-      plans: [...SHOPIFY_BILLING_PLAN_KEYS],
-      isTest,
-    });
-    const subscriptionId = billingCheck.appSubscriptions[0]?.id;
-    if (!subscriptionId) {
-      return { error: "No Shopify subscription to cancel." };
+    if (!pricingPlansUrl) {
+      return { error: "Could not open Shopify billing for this shop." };
     }
-    await billing.cancel({
-      subscriptionId,
-      isTest,
-      prorate: true,
-    });
-    await clearActivePlan(session.shop);
-    return { success: "Billing cancelled." };
+    return redirect(pricingPlansUrl, { target: "_top" });
   }
 
-  const started = await startVolumeBilling(
-    request,
-    billing,
-    isTest,
-    session.shop,
-  );
+  const started = await startVolumeBilling(request, session.shop);
   if (started.confirmationUrl) {
-    return { confirmationUrl: started.confirmationUrl };
+    return redirect(started.confirmationUrl, { target: "_top" });
   }
   return {
     error:
@@ -142,25 +138,30 @@ export default function BillingPage() {
     usageThreshold,
     confirmationUrl,
     requestError,
+    pricingPlansUrl,
   } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const busy = navigation.state !== "idle";
   const currentTier = tiers[currentPlan];
-  const rawShopifyUrl =
-    (actionData &&
-      "confirmationUrl" in actionData &&
-      actionData.confirmationUrl) ||
-    confirmationUrl;
+  const rawShopifyUrl = confirmationUrl || pricingPlansUrl || undefined;
   const shopifyUrl =
-    rawShopifyUrl && isShopifyAdminCheckoutUrl(rawShopifyUrl)
+    !hasActivePayment &&
+    typeof rawShopifyUrl === "string" &&
+    isShopifyAdminCheckoutUrl(rawShopifyUrl)
       ? normalizeShopifyCheckoutUrl(rawShopifyUrl)
       : undefined;
   const requestFailed =
     requestError ||
-    (actionData && "error" in actionData ? actionData.error : null);
+    (actionData &&
+    typeof actionData === "object" &&
+    "error" in actionData &&
+    typeof actionData.error === "string"
+      ? actionData.error
+      : null);
 
   useEffect(() => {
+    if (hasActivePayment) return;
     if (!shopifyUrl || !isShopifyAdminCheckoutUrl(shopifyUrl)) return;
     try {
       const target = window.top ?? window;
@@ -168,7 +169,7 @@ export default function BillingPage() {
     } catch {
       window.open(shopifyUrl, "_top");
     }
-  }, [shopifyUrl]);
+  }, [hasActivePayment, shopifyUrl]);
 
   return (
     <s-page
@@ -190,9 +191,6 @@ export default function BillingPage() {
           .
         </s-banner>
       ) : null}
-      {actionData && "success" in actionData && actionData.success ? (
-        <s-banner tone="success">{actionData.success}</s-banner>
-      ) : null}
 
       <s-section
         heading={hasActivePayment ? "Subscription" : "Approve billing"}
@@ -212,7 +210,7 @@ export default function BillingPage() {
                 variant="secondary"
                 {...(busy ? { loading: true } : {})}
               >
-                Cancel billing
+                Manage plan on Shopify
               </s-button>
             </Form>
           </s-stack>
@@ -222,16 +220,27 @@ export default function BillingPage() {
               Approve volume billing on Shopify to keep using Appify Bundles.
               Shopify charges the band that matches your monthly orders.
             </s-banner>
-            <Form method="post">
-              <input type="hidden" name="intent" value="subscribe" />
+            {shopifyUrl ? (
               <s-button
-                type="submit"
+                href={shopifyUrl}
                 variant="primary"
+                target="_top"
                 {...(busy ? { loading: true } : {})}
               >
-                Subscribe
+                Approve on Shopify
               </s-button>
-            </Form>
+            ) : (
+              <Form method="post">
+                <input type="hidden" name="intent" value="subscribe" />
+                <s-button
+                  type="submit"
+                  variant="primary"
+                  {...(busy ? { loading: true } : {})}
+                >
+                  Approve on Shopify
+                </s-button>
+              </Form>
+            )}
           </s-stack>
         )}
       </s-section>
@@ -347,7 +356,10 @@ export default function BillingPage() {
 
       <s-section slot="aside" heading="How billing works">
         <s-unordered-list>
-          <s-list-item>Approve once. There is no plan to select.</s-list-item>
+          <s-list-item>
+            Approve once on Shopify&apos;s hosted plan page. There is no plan to
+            select in the app.
+          </s-list-item>
           <s-list-item>
             0–500 orders: $50. 501–1,500: $125. 1,501+: $175 + $
             {usageRate.toFixed(2)} per order over{" "}

@@ -44,6 +44,7 @@ export function shouldRevalidate({
   if (formAction?.includes("/app/billing")) return true;
   if (nextUrl.searchParams.get("charge_id")) return true;
   if (nextUrl.searchParams.get("subscribed") === "true") return true;
+  if (nextUrl.searchParams.get("plan_handle")) return true;
 
   const currentPath = currentUrl.pathname;
   const nextPath = nextUrl.pathname;

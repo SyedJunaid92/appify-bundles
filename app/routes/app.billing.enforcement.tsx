@@ -1,13 +1,13 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import { APPIFY_BUNDLES, APPIFY_BUNDLES_HANDLE } from "../constants/billing";
-import { setActivePlan } from "../models/billing.server";
-import { isShopBillingTestMode } from "../services/billing-mode.server";
 import { pauseBundlesForTierLimit } from "../services/billing-enforcement.server";
+import {
+  startVolumeBilling,
+  volumeBillingApprovalUrl,
+} from "../services/billing-gate.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing, admin, session } = await authenticate.admin(request);
-  const isTest = await isShopBillingTestMode(admin);
+  const { session, redirect } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
 
@@ -17,11 +17,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "upgrade") {
-    await setActivePlan(session.shop, APPIFY_BUNDLES);
-    return billing.request({
-      plan: APPIFY_BUNDLES_HANDLE,
-      isTest,
-    });
+    const started = await startVolumeBilling(request, session.shop);
+    const pricingPlansUrl =
+      started.confirmationUrl || volumeBillingApprovalUrl(request, session.shop);
+    if (pricingPlansUrl) {
+      return redirect(pricingPlansUrl, { target: "_top" });
+    }
+    return {
+      error:
+        started.error ??
+        "Shopify could not open the plan page. Try billing again.",
+    };
   }
 
   return { error: "Unknown intent." };

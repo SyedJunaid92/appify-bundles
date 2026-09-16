@@ -1,4 +1,3 @@
-import { unauthenticated } from "../shopify.server";
 import prisma from "../db.server";
 import { canonicalizePlanKey, type BillingPlanKey } from "../constants/billing";
 import {
@@ -7,15 +6,9 @@ import {
   resetBillingPeriod,
 } from "../models/billing.server";
 import {
-  calculateMonthlyCharge,
   getRecommendedPlan,
   usageChargeForSubscription,
 } from "../utils/billing-calculation";
-import {
-  checkShopBilling,
-  createShopUsageRecord,
-} from "../services/shopify-billing-api.server";
-import { isShopBillingTestMode } from "../services/billing-mode.server";
 
 export interface BillingSyncResult {
   shop: string;
@@ -91,7 +84,6 @@ async function chargeUsageIfNeeded(
   const orderCount = summary.billing.monthlyOrderCount;
   const subscribed = canonicalizePlanKey(summary.billing.activePlan);
   const usageAmount = usageChargeForSubscription(orderCount, subscribed);
-  const charge = calculateMonthlyCharge(orderCount);
 
   if (usageAmount <= 0) {
     return {
@@ -101,43 +93,9 @@ async function chargeUsageIfNeeded(
     };
   }
 
-  let session;
-  let isTest = true;
-  try {
-    const ctx = await unauthenticated.admin(shop);
-    session = ctx.session;
-    isTest = await isShopBillingTestMode(ctx.admin);
-  } catch {
-    return {
-      shop,
-      action: "error",
-      detail: "No offline session found",
-    };
-  }
-
-  const billingCheck = await checkShopBilling(session, isTest);
-  if (!billingCheck.hasActivePayment) {
-    return {
-      shop,
-      action: "skipped",
-      detail: "No active subscription",
-    };
-  }
-
-  const periodKey = summary.billing.orderCountPeriodStart
-    .toISOString()
-    .slice(0, 10);
-
-  await createShopUsageRecord(session, {
-    description: `Appify Bundles ${recommended}: ${orderCount} orders, $${charge.cappedAmount} total`,
-    amount: usageAmount,
-    idempotencyKey: `appify-usage-${shop}-${periodKey}`,
-    isTest,
-  });
-
   return {
     shop,
-    action: "usage_record",
-    detail: `Charged $${usageAmount} usage to reach $${charge.cappedAmount}`,
+    action: "skipped",
+    detail: `Shopify App Pricing usage for ${recommended} is reported with App Events`,
   };
 }

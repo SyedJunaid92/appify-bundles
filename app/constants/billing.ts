@@ -119,6 +119,16 @@ export function isVolumeSubscription(value: string | null | undefined): boolean 
   );
 }
 
+export function isStoredSubscriptionActive(
+  activePlan: string | null | undefined,
+  subscriptionStatus: string | null | undefined,
+): boolean {
+  return (
+    Boolean(activePlan) &&
+    (subscriptionStatus || "").toUpperCase() === "ACTIVE"
+  );
+}
+
 export function canonicalizePlanKey(
   value: string | null | undefined,
 ): BillingPlanKey | null {

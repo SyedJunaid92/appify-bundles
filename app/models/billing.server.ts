@@ -52,9 +52,11 @@ export async function setActivePlan(
       shop,
       activePlan: planKey,
       shopifySubscriptionId,
+      subscriptionStatus: "ACTIVE",
     },
     update: {
       activePlan: planKey,
+      subscriptionStatus: "ACTIVE",
       ...(shopifySubscriptionId ? { shopifySubscriptionId } : {}),
     },
   });

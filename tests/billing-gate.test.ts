@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { APPIFY_BUNDLES, isStoredSubscriptionActive } from "../app/constants/billing";
 import {
   appendEmbedSearchParams,
   billingErrorMessage,
@@ -6,6 +7,7 @@ import {
   isBillingGateExempt,
   isBillingReturn,
   isShopifyAdminCheckoutUrl,
+  isShopifyAppPricingBlockedError,
   normalizeShopifyCheckoutUrl,
   shopFromAppProxy,
   shouldAutoApproveBilling,
@@ -13,6 +15,13 @@ import {
 } from "../app/utils/embedded-app";
 
 describe("billing gate helpers", () => {
+  it("only treats an ACTIVE stored plan as paid", () => {
+    expect(isStoredSubscriptionActive(APPIFY_BUNDLES, "ACTIVE")).toBe(true);
+    expect(isStoredSubscriptionActive(APPIFY_BUNDLES, "active")).toBe(true);
+    expect(isStoredSubscriptionActive(APPIFY_BUNDLES, "")).toBe(false);
+    expect(isStoredSubscriptionActive(APPIFY_BUNDLES, "CANCELLED")).toBe(false);
+    expect(isStoredSubscriptionActive(null, "ACTIVE")).toBe(false);
+  });
   it("sends unpaid app pages to billing", () => {
     expect(isBillingGateExempt("/app")).toBe(false);
     expect(isBillingGateExempt("/app/bundles")).toBe(false);
@@ -26,6 +35,11 @@ describe("billing gate helpers", () => {
     );
     expect(
       isBillingReturn(new URL("https://app.example/app?subscribed=true")),
+    ).toBe(true);
+    expect(
+      isBillingReturn(
+        new URL("https://app.example/app?plan_handle=appify-bundles"),
+      ),
     ).toBe(true);
     expect(isBillingReturn(new URL("https://app.example/app"))).toBe(false);
   });
@@ -110,6 +124,16 @@ describe("billing gate helpers", () => {
     expect(url).toBe("https://admin.shopify.com/charges/confirm");
     expect(billingErrorMessage(new Error("plan missing"))).toContain(
       "plan missing",
+    );
+    expect(
+      isShopifyAppPricingBlockedError(
+        new Error(
+          "Cannot use the Billing API (to create charges) when on Shopify App Pricing.",
+        ),
+      ),
+    ).toBe(true);
+    expect(isShopifyAppPricingBlockedError(new Error("plan missing"))).toBe(
+      false,
     );
   });
 
