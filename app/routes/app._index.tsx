@@ -8,22 +8,29 @@ import { formatCurrency } from "../utils/analytics-format";
 import { CreateBundleButton } from "../components/CreateBundleButton";
 import { SetupGuide } from "../components/SetupGuide";
 import { getThemeEditorEmbedUrl } from "../constants/bundle-types";
-import { isAppEmbedActiveOnMainTheme } from "../services/theme-embed.server";
+import {
+  isAppEmbedActiveOnMainTheme,
+  listStoreThemes,
+} from "../services/theme-embed.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const apiKey = process.env.SHOPIFY_API_KEY || "";
 
-  const [dashboard, analytics, embedActive] = await Promise.all([
+  const [dashboard, analytics, embedActive, themes] = await Promise.all([
     getDashboardData(session.shop),
     getAnalyticsSummary(session.shop, "30d"),
     isAppEmbedActiveOnMainTheme(admin),
+    listStoreThemes(admin),
   ]);
 
   return {
     ...dashboard,
     analytics,
     embedActive,
+    themes,
+    shop: session.shop,
+    apiKey,
     themeEditorUrl: getThemeEditorEmbedUrl(session.shop, apiKey),
   };
 };
@@ -41,6 +48,9 @@ export default function Dashboard() {
     activeCount,
     dismissed,
     embedActive,
+    themes,
+    shop,
+    apiKey,
     themeEditorUrl,
     analytics,
   } = useLoaderData<typeof loader>();
@@ -78,7 +88,9 @@ export default function Dashboard() {
       </s-section>
 
       <SetupGuide
-        themeEditorUrl={themeEditorUrl}
+        shop={shop}
+        apiKey={apiKey}
+        themes={themes}
         hasBundles={totalBundles > 0}
         embedActive={embedActive}
         dismissed={dismissed}
@@ -128,7 +140,7 @@ export default function Dashboard() {
           {!embedActive ? (
             <s-list-item>
               <s-link href={themeEditorUrl} target="_blank">
-                Activate app embed on product pages
+                Activate app embed on product and cart pages
               </s-link>
             </s-list-item>
           ) : null}
@@ -137,6 +149,11 @@ export default function Dashboard() {
           </s-list-item>
           <s-list-item>
             <s-link href="/app/settings">Customize widget colors</s-link>
+          </s-list-item>
+          <s-list-item>
+            <s-link href="/app/settings#theme-setup">
+              Theme app extension instructions
+            </s-link>
           </s-list-item>
         </s-unordered-list>
       </s-section>

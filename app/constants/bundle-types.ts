@@ -132,10 +132,7 @@ export function getBundleType(id: string): BundleTypeDefinition | undefined {
   return BUNDLE_TYPES.find((t) => t.id === canonical);
 }
 
-export function getThemeEditorEmbedUrl(shop: string, apiKey: string) {
-  const shopDomain = shop.replace(/^https?:\/\//, "");
-  return `https://${shopDomain}/admin/themes/current/editor?context=apps&template=product&activateAppId=${apiKey}/bundle-embed`;
-}
+export { getThemeEditorEmbedUrl } from "../utils/theme-editor";
 
 export function mapBundleTypeToDb(type: BundleTypeDefinition) {
   const map: Record<BundleTypeId, { type: string; layout: string }> = {

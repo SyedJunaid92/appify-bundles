@@ -16,11 +16,26 @@ import {
   updateShopWidgetSettings,
 } from "../models/bundle.server";
 import { widgetSettingsSchema } from "../schemas/bundle.schema";
+import { ThemeOnboarding } from "../components/ThemeOnboarding";
+import {
+  isAppEmbedActiveOnMainTheme,
+  listStoreThemes,
+} from "../services/theme-embed.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const widget = await getShopWidgetSettings(session.shop);
-  return { widget: { ...DEFAULT_WIDGET_COLORS, ...widget } };
+  const { admin, session } = await authenticate.admin(request);
+  const [widget, themes, embedActive] = await Promise.all([
+    getShopWidgetSettings(session.shop),
+    listStoreThemes(admin),
+    isAppEmbedActiveOnMainTheme(admin),
+  ]);
+  return {
+    widget: { ...DEFAULT_WIDGET_COLORS, ...widget },
+    themes,
+    embedActive,
+    shop: session.shop,
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -43,7 +58,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function WidgetSettings() {
-  const { widget } = useLoaderData<typeof loader>();
+  const { widget, themes, embedActive, shop, apiKey } =
+    useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const shopify = useAppBridge();
@@ -196,12 +212,21 @@ export default function WidgetSettings() {
         </s-button>
       </Form>
 
-      <s-section slot="aside" heading="Theme setup">
-        <s-paragraph>
-          In your theme editor, add the <strong>Appify Bundle Widget</strong>{" "}
-          block to product pages. Colors sync automatically from these settings.
-        </s-paragraph>
-      </s-section>
+      <div id="theme-setup">
+        <s-section heading="Theme app extension">
+          <s-paragraph>
+            Widget colors you save here apply automatically on the storefront.
+            Use the instructions below to add, remove, or reposition the theme
+            app extension.
+          </s-paragraph>
+          <ThemeOnboarding
+            shop={shop}
+            apiKey={apiKey}
+            themes={themes}
+            embedActive={embedActive}
+          />
+        </s-section>
+      </div>
     </s-page>
   );
 }

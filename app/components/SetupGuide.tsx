@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
 import { useFetcher } from "react-router";
 import { CreateBundleButton } from "./CreateBundleButton";
+import { ThemeOnboarding } from "./ThemeOnboarding";
+import type { StoreTheme } from "../utils/theme-editor";
 
 type Props = {
-  themeEditorUrl: string;
+  shop: string;
+  apiKey: string;
+  themes: StoreTheme[];
   hasBundles: boolean;
   embedActive: boolean;
   dismissed: boolean;
@@ -33,8 +37,11 @@ function SetupStep({
           {step}
         </span>
         <div className="setup-guide-step__body">
-          <s-heading>{title}</s-heading>
-          {done ? <s-badge tone="success">Completed</s-badge> : children}
+          <s-stack direction="inline" gap="base">
+            <s-heading>{title}</s-heading>
+            {done ? <s-badge tone="success">Completed</s-badge> : null}
+          </s-stack>
+          {children}
         </div>
       </div>
     </s-box>
@@ -42,7 +49,9 @@ function SetupStep({
 }
 
 export function SetupGuide({
-  themeEditorUrl,
+  shop,
+  apiKey,
+  themes,
   hasBundles,
   embedActive,
   dismissed,
@@ -52,31 +61,36 @@ export function SetupGuide({
   if (dismissed) return null;
 
   return (
-    <s-section>
+    <s-section heading="Setup guide">
       <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
         <s-stack direction="block" gap="base">
-          <s-stack direction="inline" gap="base">
-            <s-heading>Setup guide</s-heading>
-            <fetcher.Form method="post" action="/app/setup" style={{ marginLeft: "auto" }}>
+          <s-grid gridTemplateColumns="1fr auto" gap="base" alignItems="start">
+            <s-paragraph>
+              Add Appify Bundles to your theme, then create a deal. You can
+              preview every change in the theme editor before saving.
+            </s-paragraph>
+            <fetcher.Form method="post" action="/app/setup">
               <input type="hidden" name="intent" value="dismiss" />
-              <s-button type="submit" variant="tertiary">
-                ✕
-              </s-button>
+              <s-button
+                type="submit"
+                variant="tertiary"
+                accessibilityLabel="Dismiss setup guide"
+                icon="x"
+              />
             </fetcher.Form>
-          </s-stack>
+          </s-grid>
 
           <SetupStep
             step={1}
-            title="Activate Appify Bundles on your storefront"
+            title="Add Appify Bundles to your theme"
             done={embedActive}
           >
-            <s-paragraph>
-              Activate the app embed by clicking the button below, then click{" "}
-              <strong>Save</strong> on the theme editor page.
-            </s-paragraph>
-            <s-button href={themeEditorUrl} target="_blank" variant="primary">
-              Activate app embed
-            </s-button>
+            <ThemeOnboarding
+              shop={shop}
+              apiKey={apiKey}
+              themes={themes}
+              embedActive={embedActive}
+            />
           </SetupStep>
 
           <SetupStep
@@ -84,7 +98,7 @@ export function SetupGuide({
             title="Create your first bundle deal"
             done={hasBundles}
           >
-            <CreateBundleButton variant="secondary" />
+            {hasBundles ? null : <CreateBundleButton variant="secondary" />}
           </SetupStep>
         </s-stack>
       </s-box>
