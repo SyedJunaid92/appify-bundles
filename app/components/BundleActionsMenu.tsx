@@ -1,5 +1,6 @@
-import { Form, useNavigate } from "react-router";
+import { useNavigate, useSubmit } from "react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 
 type Props = {
@@ -21,6 +22,7 @@ export function BundleActionsMenu({
   isSubmitting,
 }: Props) {
   const navigate = useNavigate();
+  const submit = useSubmit();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<MenuPosition>({ top: 0, left: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -78,6 +80,16 @@ export function BundleActionsMenu({
     navigate(`/app/bundles/${bundleId}/edit`);
   };
 
+  const runIntent =
+    (intent: string) => (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (isSubmitting) return;
+
+      submit({ intent, id: bundleId }, { method: "post" });
+      setOpen(false);
+    };
+
   const dropdown =
     open &&
     createPortal(
@@ -95,94 +107,72 @@ export function BundleActionsMenu({
           type="button"
           className="bundle-actions-menu__item"
           role="menuitem"
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
           onClick={editBundle}
         >
           Edit
         </button>
 
         {status === "draft" && (
-          <Form method="post" className="bundle-actions-menu__form">
-            <input type="hidden" name="intent" value="publish" />
-            <input type="hidden" name="id" value={bundleId} />
-            <button
-              type="submit"
-              className="bundle-actions-menu__item"
-              role="menuitem"
-              disabled={isSubmitting}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => setOpen(false)}
-            >
-              Publish
-            </button>
-          </Form>
+          <button
+            type="button"
+            className="bundle-actions-menu__item"
+            role="menuitem"
+            disabled={isSubmitting}
+            onMouseDown={runIntent("publish")}
+          >
+            Publish
+          </button>
         )}
 
         {status === "active" && (
-          <Form method="post" className="bundle-actions-menu__form">
-            <input type="hidden" name="intent" value="ab_test" />
-            <input type="hidden" name="id" value={bundleId} />
-            <button
-              type="submit"
-              className="bundle-actions-menu__item"
-              role="menuitem"
-              disabled={isSubmitting}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => setOpen(false)}
-            >
-              Create A/B test
-            </button>
-          </Form>
+          <button
+            type="button"
+            className="bundle-actions-menu__item"
+            role="menuitem"
+            disabled={isSubmitting}
+            onMouseDown={runIntent("ab_test")}
+          >
+            Create A/B test
+          </button>
         )}
 
         {status === "active" && (
-          <Form method="post" className="bundle-actions-menu__form">
-            <input type="hidden" name="intent" value="pause" />
-            <input type="hidden" name="id" value={bundleId} />
-            <button
-              type="submit"
-              className="bundle-actions-menu__item"
-              role="menuitem"
-              disabled={isSubmitting}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => setOpen(false)}
-            >
-              Pause
-            </button>
-          </Form>
+          <button
+            type="button"
+            className="bundle-actions-menu__item"
+            role="menuitem"
+            disabled={isSubmitting}
+            onMouseDown={runIntent("pause")}
+          >
+            Pause
+          </button>
         )}
 
         {status === "paused" && (
-          <Form method="post" className="bundle-actions-menu__form">
-            <input type="hidden" name="intent" value="resume" />
-            <input type="hidden" name="id" value={bundleId} />
-            <button
-              type="submit"
-              className="bundle-actions-menu__item"
-              role="menuitem"
-              disabled={isSubmitting}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => setOpen(false)}
-            >
-              Resume
-            </button>
-          </Form>
-        )}
-
-        <Form method="post" className="bundle-actions-menu__form">
-          <input type="hidden" name="intent" value="delete" />
-          <input type="hidden" name="id" value={bundleId} />
           <button
-            type="submit"
-            className="bundle-actions-menu__item bundle-actions-menu__item--danger"
+            type="button"
+            className="bundle-actions-menu__item"
             role="menuitem"
             disabled={isSubmitting}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => setOpen(false)}
+            onMouseDown={runIntent("resume")}
           >
-            Delete
+            Resume
           </button>
-        </Form>
+        )}
+
+        <button
+          type="button"
+          className="bundle-actions-menu__item bundle-actions-menu__item--danger"
+          role="menuitem"
+          disabled={isSubmitting}
+          onMouseDown={runIntent("delete")}
+        >
+          Delete
+        </button>
       </div>,
       document.body,
     );

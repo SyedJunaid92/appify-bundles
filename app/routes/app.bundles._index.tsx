@@ -18,6 +18,7 @@ import {
 } from "../utils/bundle-display";
 import {
   ensureAutomaticBundleDiscount,
+  syncActiveOffersToDiscount,
   syncBundleToShopify,
 } from "../services/shopify-sync.server";
 import {
@@ -64,11 +65,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "delete") {
     await deleteBundle(session.shop, id);
+    await syncActiveOffersToDiscount(admin, session.shop);
     return { ok: true, intent: "delete" };
   }
 
   if (intent === "pause") {
     await updateBundleStatus(session.shop, id, "paused");
+    await syncActiveOffersToDiscount(admin, session.shop);
     return { ok: true, intent: "pause" };
   }
 
@@ -98,6 +101,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "draft") {
     await updateBundleStatus(session.shop, id, "draft");
+    await syncActiveOffersToDiscount(admin, session.shop);
     return { ok: true, intent: "draft" };
   }
 
